@@ -3,9 +3,9 @@ import type { DiffFile, RunOptions } from "../core.js";
 
 export async function runJest(
   options: RunOptions,
-  diffFiles: DiffFile[]
+  diffFiles: DiffFile[],
 ): Promise<void> {
-  const { cwd, testCommand, extensions } = options;
+  const { cwd, testCommand } = options;
   const filePaths = diffFiles.map((f) => f.path);
 
   const jestArgs = [

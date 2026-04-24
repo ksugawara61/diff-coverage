@@ -1,6 +1,6 @@
-import { execa } from "execa";
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve, relative } from "node:path";
+import { resolve } from "node:path";
+import { execa } from "execa";
 import type { DiffFile, RunOptions } from "../core.js";
 
 // Vitest outputs coverage to coverage/ by default, same as Jest.
@@ -9,7 +9,7 @@ import type { DiffFile, RunOptions } from "../core.js";
 // We run all tests but restrict coverage collection to diff files only.
 export async function runVitest(
   options: RunOptions,
-  diffFiles: DiffFile[]
+  diffFiles: DiffFile[],
 ): Promise<void> {
   const { cwd, testCommand } = options;
   const filePaths = diffFiles.map((f) => f.path);
@@ -21,10 +21,10 @@ export async function runVitest(
     "run",
     "--coverage",
     "--coverage.enabled=true",
-    "--coverage.provider=v8",          // v8 is faster; istanbul also works
+    "--coverage.provider=v8", // v8 is faster; istanbul also works
     "--coverage.reporter=json",
     "--coverage.reporter=json-summary",
-    "--coverage.all=false",            // only instrument files that are imported
+    "--coverage.all=false", // only instrument files that are imported
     ...includeArgs,
     "--passWithNoTests",
   ];
@@ -46,13 +46,16 @@ export async function runVitest(
 
 // Vitest v8 sometimes writes relative paths as keys instead of absolute paths.
 // Normalize to absolute paths to match Jest's output format.
-async function normalizeVitestCoverage(cwd: string): Promise<void> {
-  const finalPath = resolve(cwd, "coverage/coverage-final.json");
+async function normalizeCoverageFile(
+  filePath: string,
+  cwd: string,
+  preserveKey?: (key: string) => boolean,
+): Promise<void> {
   let raw: string;
   try {
-    raw = await readFile(finalPath, "utf-8");
+    raw = await readFile(filePath, "utf-8");
   } catch {
-    return; // file doesn't exist yet — nothing to normalize
+    return;
   }
 
   const data: Record<string, unknown> = JSON.parse(raw);
@@ -60,47 +63,25 @@ async function normalizeVitestCoverage(cwd: string): Promise<void> {
   let changed = false;
 
   for (const [key, value] of Object.entries(data)) {
-    // If key is already absolute, keep as-is
-    if (key.startsWith("/") || key.match(/^[A-Z]:\\/)) {
+    if (preserveKey?.(key) || key.startsWith("/") || key.match(/^[A-Z]:\\/)) {
       normalized[key] = value;
     } else {
-      // Relative path → make absolute
       normalized[resolve(cwd, key)] = value;
       changed = true;
     }
   }
 
   if (changed) {
-    await writeFile(finalPath, JSON.stringify(normalized), "utf-8");
+    await writeFile(filePath, JSON.stringify(normalized), "utf-8");
   }
+}
 
-  // Same for coverage-summary.json
+async function normalizeVitestCoverage(cwd: string): Promise<void> {
+  const finalPath = resolve(cwd, "coverage/coverage-final.json");
   const summaryPath = resolve(cwd, "coverage/coverage-summary.json");
-  let rawSummary: string;
-  try {
-    rawSummary = await readFile(summaryPath, "utf-8");
-  } catch {
-    return;
-  }
 
-  const summaryData: Record<string, unknown> = JSON.parse(rawSummary);
-  const normalizedSummary: Record<string, unknown> = {};
-  let summaryChanged = false;
-
-  for (const [key, value] of Object.entries(summaryData)) {
-    if (key === "total") {
-      normalizedSummary[key] = value;
-    } else if (key.startsWith("/") || key.match(/^[A-Z]:\\/)) {
-      normalizedSummary[key] = value;
-    } else {
-      normalizedSummary[resolve(cwd, key)] = value;
-      summaryChanged = true;
-    }
-  }
-
-  if (summaryChanged) {
-    await writeFile(summaryPath, JSON.stringify(normalizedSummary), "utf-8");
-  }
+  await normalizeCoverageFile(finalPath, cwd);
+  await normalizeCoverageFile(summaryPath, cwd, (key) => key === "total");
 }
 
 export const VITEST_COVERAGE_DIR = "coverage";
