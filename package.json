@@ -13,7 +13,8 @@
     "@biomejs/biome": "^2.4.13",
     "@types/node": "^22.0.0",
     "lefthook": "^2.1.6",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.5"
   },
   "engines": {
     "node": ">=18"
@@ -29,6 +30,8 @@
     "mcp": "node dist/mcp.js",
     "prepare": "lefthook install",
     "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",
