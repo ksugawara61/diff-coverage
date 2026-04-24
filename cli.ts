@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
 import { Command } from "commander";
-import { formatResult, getDiffFiles, runCoverage } from "./core.js";
+import {
+  formatResult,
+  formatTypecheckResult,
+  getDiffFiles,
+  runCoverage,
+  runTypecheck,
+} from "./core.js";
 import { detectRunner, type RunnerType } from "./runner/detect.js";
 
 type MeasureOpts = {
@@ -152,6 +158,54 @@ program
     const cwd = resolve(opts.cwd);
     const runner = await detectRunner(cwd);
     console.log(`Detected runner: ${runner}`);
+  });
+
+program
+  .command("typecheck")
+  .description("Run TypeScript type-check on changed files")
+  .option("-b, --base <branch>", "Base branch to diff against", "main")
+  .option("-c, --cwd <path>", "Project root directory", process.cwd())
+  .option("--cmd <command>", "Override typecheck command (e.g. 'pnpm tsc --noEmit')")
+  .option(
+    "--ext <extensions>",
+    "Comma-separated file extensions",
+    "ts,tsx,mts,cts",
+  )
+  .option("--json", "Output raw JSON")
+  .action(async (opts) => {
+    const cwd = resolve(opts.cwd);
+    const extensions = opts.ext.split(",").map((e: string) => e.trim());
+
+    console.error(`🔍 Type-checking diff against ${opts.base}...`);
+
+    try {
+      const diffFiles = await getDiffFiles(cwd, opts.base, extensions);
+
+      if (diffFiles.length === 0) {
+        console.log("No changed TypeScript files found.");
+        process.exit(0);
+      }
+
+      console.error(
+        `📁 Changed files: ${diffFiles.map((f) => f.path).join(", ")}`,
+      );
+      console.error("⚙️  Running tsc...\n");
+
+      const result = await runTypecheck(cwd, diffFiles, opts.cmd);
+
+      if (opts.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(formatTypecheckResult(result));
+      }
+
+      if (!result.passed) {
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error("Error:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    }
   });
 
 program.parse();

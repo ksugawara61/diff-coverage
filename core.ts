@@ -394,6 +394,110 @@ function emptyResult(
   };
 }
 
+// ─── Typecheck ───────────────────────────────────────────────────────────────
+
+export type TypecheckError = {
+  code: string;
+  column: number;
+  file: string;
+  line: number;
+  message: string;
+};
+
+export type TypecheckFileResult = {
+  errors: TypecheckError[];
+  path: string;
+};
+
+export type TypecheckResult = {
+  diffFiles: string[];
+  files: TypecheckFileResult[];
+  passed: boolean;
+  timestamp: string;
+  totalErrors: number;
+};
+
+export async function runTypecheck(
+  cwd: string,
+  diffFiles: DiffFile[],
+  cmd?: string,
+): Promise<TypecheckResult> {
+  const fullCmd = cmd ?? "npx tsc --noEmit";
+  const [bin, ...args] = fullCmd.split(" ");
+
+  const result = await execa(bin, args, { cwd, reject: false });
+  const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
+
+  const errorRegex = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.+)$/gm;
+  const allErrors: TypecheckError[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = errorRegex.exec(output)) !== null) {
+    const [, rawFile, line, column, code, message] = match;
+    allErrors.push({
+      code,
+      column: Number.parseInt(column, 10),
+      file: relative(cwd, resolve(cwd, rawFile)),
+      line: Number.parseInt(line, 10),
+      message,
+    });
+  }
+
+  const diffPathSet = new Set(diffFiles.map((f) => f.path));
+  const diffErrors = allErrors.filter((e) => diffPathSet.has(e.file));
+
+  const errorsByFile = new Map<string, TypecheckError[]>();
+  for (const err of diffErrors) {
+    const existing = errorsByFile.get(err.file) ?? [];
+    existing.push(err);
+    errorsByFile.set(err.file, existing);
+  }
+
+  const files: TypecheckFileResult[] = diffFiles.map((df) => ({
+    errors: errorsByFile.get(df.path) ?? [],
+    path: df.path,
+  }));
+
+  return {
+    diffFiles: diffFiles.map((f) => f.path),
+    files,
+    passed: diffErrors.length === 0,
+    timestamp: new Date().toISOString(),
+    totalErrors: diffErrors.length,
+  };
+}
+
+export function formatTypecheckResult(result: TypecheckResult): string {
+  const { files, passed, totalErrors } = result;
+  const out: string[] = [];
+
+  out.push("=== TypeScript Type-Check Report ===\n");
+
+  if (files.length === 0) {
+    out.push("No changed TypeScript files found.");
+    return out.join("\n");
+  }
+
+  out.push(`Files checked: ${files.length}`);
+  out.push(`Total errors: ${totalErrors}`);
+  out.push(`Status: ${passed ? "✅ PASS" : "❌ FAIL"}`);
+
+  if (totalErrors > 0) {
+    out.push("\n--- Errors by File ---");
+    for (const f of files) {
+      if (f.errors.length === 0) continue;
+      out.push(
+        `\n❌ ${f.path} (${f.errors.length} error${f.errors.length > 1 ? "s" : ""})`,
+      );
+      for (const err of f.errors) {
+        out.push(`   ${err.line}:${err.column}  ${err.code}  ${err.message}`);
+      }
+    }
+  }
+
+  return out.join("\n");
+}
+
 // ─── Formatter ────────────────────────────────────────────────────────────────
 
 function getCoverageIcon(pct: number): string {
