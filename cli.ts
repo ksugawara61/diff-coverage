@@ -165,7 +165,10 @@ program
   .description("Run TypeScript type-check on changed files")
   .option("-b, --base <branch>", "Base branch to diff against", "main")
   .option("-c, --cwd <path>", "Project root directory", process.cwd())
-  .option("--cmd <command>", "Override typecheck command (e.g. 'pnpm tsc --noEmit')")
+  .option(
+    "--cmd <command>",
+    "Override typecheck command (e.g. 'pnpm tsc --noEmit')",
+  )
   .option(
     "--ext <extensions>",
     "Comma-separated file extensions",
