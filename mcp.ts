@@ -1,10 +1,16 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { getDiffFiles, runCoverage, formatResult } from "./core.js";
+import {
+  type FileDetail,
+  formatResult,
+  getDiffFiles,
+  runCoverage,
+} from "./core.js";
 import { detectRunner } from "./runner/detect.js";
-import { resolve } from "node:path";
 
 const server = new McpServer({
   name: "diff-coverage",
@@ -15,7 +21,47 @@ const RunnerSchema = z
   .enum(["jest", "vitest", "auto"])
   .optional()
   .default("auto")
-  .describe("Test runner to use. 'auto' detects from vitest.config.* / jest.config.* / package.json");
+  .describe(
+    "Test runner to use. 'auto' detects from vitest.config.* / jest.config.* / package.json",
+  );
+
+// ─── Coverage detail helpers ──────────────────────────────────────────────────
+
+function collectUncoveredStatements(fileData: FileDetail): number[] {
+  const lines: Set<number> = new Set();
+  for (const [id, count] of Object.entries(fileData.s ?? {})) {
+    if (count === 0) {
+      const loc = fileData.statementMap?.[id]?.start?.line;
+      if (loc) lines.add(loc);
+    }
+  }
+  return [...lines].sort((a, b) => a - b);
+}
+
+function collectUncoveredFunctions(fileData: FileDetail): string[] {
+  const result: string[] = [];
+  for (const [id, count] of Object.entries(fileData.f ?? {})) {
+    if (count === 0) {
+      const fn = fileData.fnMap?.[id];
+      if (fn) result.push(`${fn.name} (line ${fn.loc?.start?.line})`);
+    }
+  }
+  return result;
+}
+
+function collectUncoveredBranches(fileData: FileDetail): number[] {
+  const lines: Set<number> = new Set();
+  for (const [id, counts] of Object.entries(fileData.b ?? {})) {
+    for (const [i, count] of counts.entries()) {
+      const loc =
+        count === 0
+          ? fileData.branchMap?.[id]?.locations?.[i]?.start?.line
+          : undefined;
+      if (loc) lines.add(loc);
+    }
+  }
+  return [...lines].sort((a, b) => a - b);
+}
 
 // ─── Tool 1: measure_diff_coverage ───────────────────────────────────────────
 
@@ -23,27 +69,33 @@ server.tool(
   "measure_diff_coverage",
   "Measure test coverage (Jest or Vitest) for files changed in the current git diff. Returns per-file coverage percentages and a summary.",
   {
-    cwd: z
-      .string()
-      .describe("Absolute path to the project root (where package.json and test config live)"),
     base: z
       .string()
       .optional()
       .default("main")
       .describe("Base branch/ref to diff against (default: main)"),
-    runner: RunnerSchema,
-    testCommand: z
+    cwd: z
       .string()
-      .optional()
-      .describe("Override test command, e.g. 'pnpm vitest' or 'npx jest --config jest.ci.config.ts'"),
+      .describe(
+        "Absolute path to the project root (where package.json and test config live)",
+      ),
     extensions: z
       .array(z.string())
       .optional()
       .describe("File extensions to include (default: ts,tsx,js,jsx)"),
+    runner: RunnerSchema,
+    testCommand: z
+      .string()
+      .optional()
+      .describe(
+        "Override test command, e.g. 'pnpm vitest' or 'npx jest --config jest.ci.config.ts'",
+      ),
     threshold: z
       .number()
       .optional()
-      .describe("Minimum line coverage % — result is marked as error if below this"),
+      .describe(
+        "Minimum line coverage % — result is marked as error if below this",
+      ),
   },
   async ({ cwd, base, runner, testCommand, extensions, threshold }) => {
     const absPath = resolve(cwd);
@@ -55,25 +107,26 @@ server.tool(
         return {
           content: [
             {
-              type: "text",
               text: "No changed source files found in diff. Either there are no changes, or all changes are in excluded files (tests, dist, node_modules).",
+              type: "text",
             },
           ],
         };
       }
 
       const result = await runCoverage(
-        { cwd: absPath, base, runner, testCommand, extensions },
-        diffFiles
+        { base, cwd: absPath, extensions, runner, testCommand },
+        diffFiles,
       );
 
       const formatted = formatResult(result, threshold);
-      const passed = threshold === undefined || result.summary.lines.pct >= threshold;
+      const passed =
+        threshold === undefined || result.summary.lines.pct >= threshold;
 
       return {
         content: [
-          { type: "text", text: formatted },
-          { type: "text", text: JSON.stringify(result, null, 2) },
+          { text: formatted, type: "text" },
+          { text: JSON.stringify(result, null, 2), type: "text" },
         ],
         isError: !passed,
       };
@@ -81,14 +134,14 @@ server.tool(
       return {
         content: [
           {
-            type: "text",
             text: `Error running coverage: ${err instanceof Error ? err.message : String(err)}`,
+            type: "text",
           },
         ],
         isError: true,
       };
     }
-  }
+  },
 );
 
 // ─── Tool 2: get_diff_files ───────────────────────────────────────────────────
@@ -97,8 +150,12 @@ server.tool(
   "get_diff_files",
   "List source files changed in the current git diff without running tests. Useful to preview what will be measured.",
   {
+    base: z
+      .string()
+      .optional()
+      .default("main")
+      .describe("Base branch to diff against"),
     cwd: z.string().describe("Absolute path to the project root"),
-    base: z.string().optional().default("main").describe("Base branch to diff against"),
     extensions: z.array(z.string()).optional(),
   },
   async ({ cwd, base, extensions }) => {
@@ -106,7 +163,9 @@ server.tool(
       const files = await getDiffFiles(resolve(cwd), base, extensions);
 
       if (files.length === 0) {
-        return { content: [{ type: "text", text: "No changed source files found." }] };
+        return {
+          content: [{ text: "No changed source files found.", type: "text" }],
+        };
       }
 
       const lines = files.map(
@@ -114,21 +173,29 @@ server.tool(
           `${f.path}  (+${f.additions} additions, -${f.deletions} deletions)` +
           (f.addedLines.length > 0
             ? `\n  Added lines: ${f.addedLines.slice(0, 10).join(", ")}${f.addedLines.length > 10 ? " ..." : ""}`
-            : "")
+            : ""),
       );
 
       return {
         content: [
-          { type: "text", text: `Changed files (${files.length}):\n\n${lines.join("\n\n")}` },
+          {
+            text: `Changed files (${files.length}):\n\n${lines.join("\n\n")}`,
+            type: "text",
+          },
         ],
       };
     } catch (err) {
       return {
-        content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+        content: [
+          {
+            text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            type: "text",
+          },
+        ],
         isError: true,
       };
     }
-  }
+  },
 );
 
 // ─── Tool 3: get_uncovered_lines ──────────────────────────────────────────────
@@ -141,73 +208,48 @@ server.tool(
     filePath: z.string().describe("Relative path to the file (from cwd)"),
   },
   async ({ cwd, filePath }) => {
-    const { readFile } = await import("node:fs/promises");
-    const { resolve } = await import("node:path");
-
     try {
       const coveragePath = resolve(cwd, "coverage/coverage-final.json");
       const raw = await readFile(coveragePath, "utf-8");
-      const data = JSON.parse(raw);
+      const data = JSON.parse(raw) as Record<string, FileDetail>;
 
-      const absFilePath = resolve(cwd, filePath);
-      const fileData = data[absFilePath];
+      const fileData = data[resolve(cwd, filePath)];
 
       if (!fileData) {
         return {
           content: [
             {
-              type: "text",
               text: `No coverage data found for ${filePath}. Make sure measure_diff_coverage was run first.`,
+              type: "text",
             },
           ],
         };
       }
 
-      const uncoveredStatements: number[] = [];
-      const uncoveredFunctions: string[] = [];
-      const uncoveredBranches: number[] = [];
-
-      for (const [id, count] of Object.entries(fileData.s ?? {})) {
-        if ((count as number) === 0) {
-          const loc = fileData.statementMap?.[id]?.start?.line;
-          if (loc) uncoveredStatements.push(loc);
-        }
-      }
-
-      for (const [id, count] of Object.entries(fileData.f ?? {})) {
-        if ((count as number) === 0) {
-          const fn = fileData.fnMap?.[id];
-          if (fn) uncoveredFunctions.push(`${fn.name} (line ${fn.loc?.start?.line})`);
-        }
-      }
-
-      for (const [id, counts] of Object.entries(fileData.b ?? {})) {
-        const arr = counts as number[];
-        arr.forEach((count, i) => {
-          if (count === 0) {
-            const loc = fileData.branchMap?.[id]?.locations?.[i]?.start?.line;
-            if (loc) uncoveredBranches.push(loc);
-          }
-        });
-      }
+      const stmtLines = collectUncoveredStatements(fileData);
+      const fnNames = collectUncoveredFunctions(fileData);
+      const branchLines = collectUncoveredBranches(fileData);
 
       const lines = [
         `=== Uncovered Code in ${filePath} ===\n`,
-        `Uncovered statements at lines: ${[...new Set(uncoveredStatements)].sort((a, b) => a - b).join(", ") || "none"}`,
-        `Uncovered functions: ${uncoveredFunctions.join(", ") || "none"}`,
-        `Uncovered branch locations at lines: ${[...new Set(uncoveredBranches)].sort((a, b) => a - b).join(", ") || "none"}`,
+        `Uncovered statements at lines: ${stmtLines.join(", ") || "none"}`,
+        `Uncovered functions: ${fnNames.join(", ") || "none"}`,
+        `Uncovered branch locations at lines: ${branchLines.join(", ") || "none"}`,
       ];
 
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return { content: [{ text: lines.join("\n"), type: "text" }] };
     } catch (err) {
       return {
         content: [
-          { type: "text", text: `Error reading coverage data: ${err instanceof Error ? err.message : String(err)}` },
+          {
+            text: `Error reading coverage data: ${err instanceof Error ? err.message : String(err)}`,
+            type: "text",
+          },
         ],
         isError: true,
       };
     }
-  }
+  },
 );
 
 // ─── Tool 4: detect_runner ────────────────────────────────────────────────────
@@ -222,15 +264,20 @@ server.tool(
     try {
       const runner = await detectRunner(resolve(cwd));
       return {
-        content: [{ type: "text", text: `Detected test runner: ${runner}` }],
+        content: [{ text: `Detected test runner: ${runner}`, type: "text" }],
       };
     } catch (err) {
       return {
-        content: [{ type: "text", text: `Error: ${err instanceof Error ? err.message : String(err)}` }],
+        content: [
+          {
+            text: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            type: "text",
+          },
+        ],
         isError: true,
       };
     }
-  }
+  },
 );
 
 // Start server

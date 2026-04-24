@@ -1,17 +1,6 @@
 {
-  "name": "diff-coverage",
-  "version": "0.1.0",
-  "description": "Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー",
-  "type": "module",
   "bin": {
     "diff-coverage": "./dist/cli.js"
-  },
-  "main": "./dist/core.js",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/cli.js",
-    "mcp": "node dist/mcp.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -19,11 +8,26 @@
     "execa": "^9.5.2",
     "zod": "^3.24.0"
   },
+  "description": "Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー",
   "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0"
   },
   "engines": {
     "node": ">=18"
-  }
+  },
+  "main": "./dist/core.js",
+  "name": "diff-coverage",
+  "scripts": {
+    "build": "tsc",
+    "check": "biome check .",
+    "dev": "tsc --watch",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "mcp": "node dist/mcp.js",
+    "start": "node dist/cli.js"
+  },
+  "type": "module",
+  "version": "0.1.0"
 }
