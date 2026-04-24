@@ -10,7 +10,7 @@ export async function runJest(
 
   const jestArgs = [
     "--coverage",
-    `--collectCoverageFrom=${filePaths.join(",")}`,
+    ...filePaths.map((p) => `--collectCoverageFrom=${p}`),
     "--coverageReporters=json-summary",
     "--coverageReporters=json",
     "--passWithNoTests",
