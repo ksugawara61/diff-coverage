@@ -12,6 +12,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
     "@types/node": "^22.0.0",
+    "lefthook": "^2.1.6",
     "typescript": "^5.8.0"
   },
   "engines": {
@@ -26,7 +27,9 @@
     "format": "biome format --write .",
     "lint": "biome lint .",
     "mcp": "node dist/mcp.js",
-    "start": "node dist/cli.js"
+    "prepare": "lefthook install",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit"
   },
   "type": "module",
   "version": "0.1.0"
