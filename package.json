@@ -1,0 +1,29 @@
+{
+  "name": "diff-coverage",
+  "version": "0.1.0",
+  "description": "Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー",
+  "type": "module",
+  "bin": {
+    "diff-coverage": "./dist/cli.js"
+  },
+  "main": "./dist/core.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "mcp": "node dist/mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "commander": "^13.0.0",
+    "execa": "^9.5.2",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
