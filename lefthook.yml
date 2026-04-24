@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    format:
+      run: pnpm biome format --write .
+      stage_fixed: true
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm typecheck
