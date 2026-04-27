@@ -81,7 +81,9 @@ describe("runJest", () => {
 
     await runJest(options, diffFiles);
 
-    const execaOptions = mockExeca.mock.calls[0][2] as { env: Record<string, string> };
+    const execaOptions = mockExeca.mock.calls[0][2] as {
+      env: Record<string, string>;
+    };
     expect(execaOptions.env).toMatchObject({ CI: "true" });
   });
 

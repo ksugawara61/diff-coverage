@@ -95,7 +95,9 @@ describe("runVitest", () => {
 
     await runVitest(options, diffFiles);
 
-    const execaOptions = mockExeca.mock.calls[0][2] as { env: Record<string, string> };
+    const execaOptions = mockExeca.mock.calls[0][2] as {
+      env: Record<string, string>;
+    };
     expect(execaOptions.env).toMatchObject({ CI: "true" });
   });
 
@@ -133,7 +135,10 @@ describe("runVitest", () => {
   it("preserves absolute paths in coverage-final.json unchanged", async () => {
     const absKey = join(tmpDir, "src/foo.ts");
     const coverageData = {
-      [absKey]: { s: { "0": 1 }, statementMap: { "0": { start: { line: 1 } } } },
+      [absKey]: {
+        s: { "0": 1 },
+        statementMap: { "0": { start: { line: 1 } } },
+      },
     };
     await writeFile(
       join(tmpDir, "coverage/coverage-final.json"),

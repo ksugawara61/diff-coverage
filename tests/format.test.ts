@@ -23,7 +23,9 @@ function makeFileCoverage(
   };
 }
 
-function makeResult(overrides?: Partial<DiffCoverageResult>): DiffCoverageResult {
+function makeResult(
+  overrides?: Partial<DiffCoverageResult>,
+): DiffCoverageResult {
   return {
     files: [],
     runner: "jest",
@@ -41,7 +43,11 @@ function makeResult(overrides?: Partial<DiffCoverageResult>): DiffCoverageResult
   };
 }
 
-function resultWithFile(path: string, pct: number, uncoveredLines: number[] = []) {
+function resultWithFile(
+  path: string,
+  pct: number,
+  uncoveredLines: number[] = [],
+) {
   const file = makeFileCoverage(path, pct, uncoveredLines);
   return makeResult({
     files: [file],
@@ -125,7 +131,9 @@ describe("formatResult", () => {
 });
 
 describe("formatTypecheckResult", () => {
-  function makeTypecheckResult(overrides?: Partial<TypecheckResult>): TypecheckResult {
+  function makeTypecheckResult(
+    overrides?: Partial<TypecheckResult>,
+  ): TypecheckResult {
     return {
       diffFiles: [],
       files: [],

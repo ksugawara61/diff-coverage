@@ -33,9 +33,9 @@ describe("getDiffFiles", () => {
 
   it("returns diff files with addition and deletion counts", async () => {
     mockGit(
-      new Error("no origin/main"),      // git rev-parse
-      { stdout: "src/foo.ts" },          // git diff --name-only
-      { stdout: "5\t2\tsrc/foo.ts" },   // git diff --numstat
+      new Error("no origin/main"), // git rev-parse
+      { stdout: "src/foo.ts" }, // git diff --name-only
+      { stdout: "5\t2\tsrc/foo.ts" }, // git diff --numstat
       { stdout: "@@ -1,2 +1,5 @@\n+a\n+b\n+c\n+d\n+e\n-x\n-y" }, // getAddedLines
     );
 
@@ -153,10 +153,10 @@ describe("getDiffFiles", () => {
 
   it("uses origin/base ref when it exists", async () => {
     mockGit(
-      { stdout: "abc123" },             // git rev-parse succeeds
-      { stdout: "src/foo.ts" },         // git diff --name-only
-      { stdout: "1\t0\tsrc/foo.ts" },   // git diff --numstat
-      { stdout: "" },                   // getAddedLines
+      { stdout: "abc123" }, // git rev-parse succeeds
+      { stdout: "src/foo.ts" }, // git diff --name-only
+      { stdout: "1\t0\tsrc/foo.ts" }, // git diff --numstat
+      { stdout: "" }, // getAddedLines
     );
 
     await getDiffFiles("/project", "main");
