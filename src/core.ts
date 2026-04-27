@@ -39,11 +39,16 @@ export type DiffCoverageResult = {
 export type RunOptions = {
   base?: string;
   cwd: string;
+  exclude?: string[];
   excludePatterns?: string[];
   extensions?: string[];
   runner?: RunnerType | "auto";
   testCommand?: string;
   threshold?: number;
+};
+
+export type DiffCoverageConfig = {
+  exclude?: string[];
 };
 
 // Istanbul/V8 coverage file format
@@ -89,6 +94,27 @@ const DEFAULT_EXCLUDE = [
   "/coverage/",
 ];
 
+// ─── Glob / config helpers ───────────────────────────────────────────────────
+
+export const globToRegex = (glob: string): string => {
+  const escaped = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\?/g, "[^/]")
+    .split("**/")
+    .map((seg) => seg.split("**").join(".*").split("*").join("[^/]*"))
+    .join("(.*/)?");
+  return glob.includes("/") ? `^${escaped}($|/)` : `(^|/)${escaped}$`;
+};
+
+export const loadConfig = async (cwd: string): Promise<DiffCoverageConfig> => {
+  try {
+    const raw = await readFile(resolve(cwd, ".diff-coverage.json"), "utf-8");
+    return JSON.parse(raw) as DiffCoverageConfig;
+  } catch {
+    return {};
+  }
+};
+
 // ─── Git diff helpers ────────────────────────────────────────────────────────
 
 export async function getDiffFiles(
@@ -96,8 +122,10 @@ export async function getDiffFiles(
   base = "main",
   extensions = DEFAULT_EXTENSIONS,
   excludePatterns = DEFAULT_EXCLUDE,
+  exclude: string[] = [],
 ): Promise<DiffFile[]> {
   const extPattern = extensions.join("|");
+  const allExcludePatterns = [...excludePatterns, ...exclude.map(globToRegex)];
 
   let baseRef = base;
   try {
@@ -125,7 +153,7 @@ export async function getDiffFiles(
     .split("\n")
     .filter(Boolean)
     .filter((f) => new RegExp(`\\.(${extPattern})$`).test(f))
-    .filter((f) => !excludePatterns.some((p) => new RegExp(p).test(f)));
+    .filter((f) => !allExcludePatterns.some((p) => new RegExp(p).test(f)));
 
   if (allFiles.length === 0) return [];
 

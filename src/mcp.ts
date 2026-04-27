@@ -8,6 +8,7 @@ import {
   type FileDetail,
   formatResult,
   getDiffFiles,
+  loadConfig,
   runCoverage,
 } from "./core.js";
 import { detectRunner } from "./runner/detect.js";
@@ -79,6 +80,12 @@ server.tool(
       .describe(
         "Absolute path to the project root (where package.json and test config live)",
       ),
+    exclude: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Glob patterns for files to exclude from coverage (e.g. ['*.mocks.ts', 'src/fixtures/**'])",
+      ),
     extensions: z
       .array(z.string())
       .optional()
@@ -97,11 +104,27 @@ server.tool(
         "Minimum line coverage % — result is marked as error if below this",
       ),
   },
-  async ({ cwd, base, runner, testCommand, extensions, threshold }) => {
+  async ({
+    cwd,
+    base,
+    runner,
+    testCommand,
+    extensions,
+    exclude,
+    threshold,
+  }) => {
     const absPath = resolve(cwd);
 
     try {
-      const diffFiles = await getDiffFiles(absPath, base, extensions);
+      const config = await loadConfig(absPath);
+      const mergedExclude = [...(config.exclude ?? []), ...(exclude ?? [])];
+      const diffFiles = await getDiffFiles(
+        absPath,
+        base,
+        extensions,
+        undefined,
+        mergedExclude,
+      );
 
       if (diffFiles.length === 0) {
         return {
@@ -156,11 +179,24 @@ server.tool(
       .default("main")
       .describe("Base branch to diff against"),
     cwd: z.string().describe("Absolute path to the project root"),
+    exclude: z
+      .array(z.string())
+      .optional()
+      .describe("Glob patterns for files to exclude (e.g. ['*.mocks.ts'])"),
     extensions: z.array(z.string()).optional(),
   },
-  async ({ cwd, base, extensions }) => {
+  async ({ cwd, base, extensions, exclude }) => {
     try {
-      const files = await getDiffFiles(resolve(cwd), base, extensions);
+      const absPath = resolve(cwd);
+      const config = await loadConfig(absPath);
+      const mergedExclude = [...(config.exclude ?? []), ...(exclude ?? [])];
+      const files = await getDiffFiles(
+        absPath,
+        base,
+        extensions,
+        undefined,
+        mergedExclude,
+      );
 
       if (files.length === 0) {
         return {
