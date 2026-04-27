@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatResult, formatTypecheckResult } from "../src/core.js";
+import { formatResult, formatTypecheckResult } from "./core.js";
 import type {
   DiffCoverageResult,
   FileCoverage,
   TypecheckResult,
-} from "../src/core.js";
+} from "./core.js";
 
 function makeFileCoverage(
   path: string,
