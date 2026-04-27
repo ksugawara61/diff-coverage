@@ -230,60 +230,6 @@ const loadDashboard = (userId: string) =>
   Promise.all([fetchBookmarks(userId), fetchScraps(userId)]).then(([bookmarks, scraps]) => ({ bookmarks, scraps }));
 ```
 
-### 関数の定義位置
-
-関数の定義は、プロジェクトの方針に従い呼び出しよりも後に置いてください。
-
-```ts
-// Good: 呼び出しより後に定義がある
-const useService = () => {
-  const result = doSomething();
-  console.log(result);
-};
-
-const doSomething = () => {
-  return 'something';
-};
-
-// Bad: 呼び出しより前に定義がある
-const doSomething = () => {
-  return 'something';
-};
-
-const useService = () => {
-  const result = doSomething();
-  console.log(result);
-};
-```
-
-```tsx
-// Good: サブコンポーネントが呼び出しより後に定義がある
-export const SomeComponent = () => {
-  return (
-    <Box>
-      <SubComponent />
-    </Box>
-  );
-};
-
-const SubComponent = () => {
-  return <Box>SubComponent</Box>;
-};
-
-// Bad: サブコンポーネントが呼び出しより前に定義がある
-const SubComponent = () => {
-  return <Box>SubComponent</Box>;
-};
-
-export const SomeComponent = () => {
-  return (
-    <Box>
-      <SubComponent />
-    </Box>
-  );
-};
-```
-
 ### 省略可能な引数は rest や props でまとめる
 
 コンポーネントで使わない props を下位コンポーネントに渡す場合、個別に展開せず rest パターンでまとめてください。
