@@ -1,7 +1,8 @@
 pre-commit:
   commands:
     format:
-      run: pnpm biome format --write .
+      glob: "**/*.{js,mjs,ts,mts,jsx,tsx,json,grit}"
+      run: pnpm biome check --no-errors-on-unmatched --files-ignore-unknown=true --write {staged_files}
       stage_fixed: true
 
 pre-push:

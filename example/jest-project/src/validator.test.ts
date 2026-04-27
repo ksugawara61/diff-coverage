@@ -1,4 +1,4 @@
-import { isEmpty, isEmail } from "./validator";
+import { isEmail, isEmpty } from "./validator";
 
 describe("validator", () => {
   describe("isEmpty", () => {

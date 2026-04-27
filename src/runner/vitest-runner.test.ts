@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("execa", () => ({
-  execa: vi.fn().mockResolvedValue({ stdout: "", stderr: "" }),
+  execa: vi.fn().mockResolvedValue({ stderr: "", stdout: "" }),
 }));
 
 import { execa } from "execa";
-import { runVitest } from "./vitest.js";
 import type { DiffFile, RunOptions } from "../core.js";
+import { runVitest } from "./vitest.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -23,7 +23,7 @@ describe("runVitest", () => {
   });
 
   afterEach(async () => {
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, { force: true, recursive: true });
   });
 
   it("invokes vitest with coverage flags via npx by default", async () => {
@@ -160,13 +160,13 @@ describe("runVitest", () => {
 
   it("preserves 'total' key in coverage-summary.json", async () => {
     const summaryData = {
-      total: {
+      "src/foo.ts": {
         branches: { covered: 5, pct: 50, total: 10 },
         functions: { covered: 5, pct: 50, total: 10 },
         lines: { covered: 5, pct: 50, total: 10 },
         statements: { covered: 5, pct: 50, total: 10 },
       },
-      "src/foo.ts": {
+      total: {
         branches: { covered: 5, pct: 50, total: 10 },
         functions: { covered: 5, pct: 50, total: 10 },
         lines: { covered: 5, pct: 50, total: 10 },

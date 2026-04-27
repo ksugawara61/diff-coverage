@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { isEmpty, isEmail } from "./validator.js";
+import { describe, expect, it } from "vitest";
+import { isEmail, isEmpty } from "./validator.js";
 
 describe("validator", () => {
   describe("isEmpty", () => {

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { add, subtract, multiply, divide } from "./calculator.js";
+import { describe, expect, it } from "vitest";
+import { add, divide, multiply, subtract } from "./calculator.js";
 
 describe("calculator", () => {
   describe("add", () => {

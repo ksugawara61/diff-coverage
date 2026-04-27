@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("execa", () => ({
-  execa: vi.fn().mockResolvedValue({ stdout: "", stderr: "" }),
+  execa: vi.fn().mockResolvedValue({ stderr: "", stdout: "" }),
 }));
 
 import { execa } from "execa";
-import { runJest } from "./jest.js";
 import type { DiffFile, RunOptions } from "../core.js";
+import { runJest } from "./jest.js";
 
 const mockExeca = vi.mocked(execa);
 

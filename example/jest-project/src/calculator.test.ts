@@ -1,4 +1,4 @@
-import { add, subtract, multiply, divide } from "./calculator";
+import { add, divide, multiply, subtract } from "./calculator";
 
 describe("calculator", () => {
   describe("add", () => {

@@ -41,6 +41,7 @@
         "useArrowFunction": "error"
       },
       "correctness": {
+        "noUnusedImports": "error",
         "noUnusedVariables": "error"
       },
       "nursery": {
