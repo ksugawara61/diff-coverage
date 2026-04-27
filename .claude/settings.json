@@ -1,0 +1,42 @@
+{
+  "defaultMode": "acceptEdits",
+  "env": {
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/claude/biome-check.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/claude/install_pkgs.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(node dist/cli.js measure --cwd example/jest-project --base main)",
+      "Bash(node dist/cli.js diff --cwd example/jest-project --base main)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm fmt *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm install *)"
+    ]
+  }
+}

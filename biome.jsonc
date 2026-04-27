@@ -15,6 +15,7 @@
   },
   "files": {
     "includes": [
+      ".claude/settings.json",
       "biome.jsonc",
       "package.json",
       "**/*.ts",
