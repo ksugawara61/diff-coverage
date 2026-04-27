@@ -26,14 +26,15 @@ describe("getDiffFiles", () => {
   });
 
   it("returns empty array when git diff reports no changed files", async () => {
-    mockGit(new Error("no origin"), { stdout: "" });
+    mockGit(new Error("no origin"), { stdout: "/project" }, { stdout: "" });
     const files = await getDiffFiles("/project", "main");
     expect(files).toEqual([]);
   });
 
   it("returns diff files with addition and deletion counts", async () => {
     mockGit(
-      new Error("no origin/main"), // git rev-parse
+      new Error("no origin/main"), // git rev-parse --verify
+      { stdout: "/project" }, // git rev-parse --show-toplevel
       { stdout: "src/foo.ts" }, // git diff --name-only
       { stdout: "5\t2\tsrc/foo.ts" }, // git diff --numstat
       { stdout: "@@ -1,2 +1,5 @@\n+a\n+b\n+c\n+d\n+e\n-x\n-y" }, // getAddedLines
@@ -50,6 +51,7 @@ describe("getDiffFiles", () => {
   it("extracts added line numbers from unified diff", async () => {
     mockGit(
       new Error("no origin/main"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts" },
       { stdout: "3\t0\tsrc/foo.ts" },
       { stdout: "@@ -0,0 +1,3 @@\n+line1\n+line2\n+line3" },
@@ -63,6 +65,7 @@ describe("getDiffFiles", () => {
   it("handles hunk starting at a non-zero line", async () => {
     mockGit(
       new Error("no origin/main"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts" },
       { stdout: "2\t2\tsrc/foo.ts" },
       { stdout: "@@ -10,2 +10,2 @@\n-old1\n+new1\n-old2\n+new2" },
@@ -76,6 +79,7 @@ describe("getDiffFiles", () => {
   it("handles multiple hunks in a single file", async () => {
     mockGit(
       new Error("no origin/main"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts" },
       { stdout: "2\t0\tsrc/foo.ts" },
       {
@@ -98,6 +102,7 @@ describe("getDiffFiles", () => {
   it("filters out test files by default", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts\nsrc/foo.test.ts\nsrc/foo.spec.ts" },
       { stdout: "1\t0\tsrc/foo.ts" },
       { stdout: "" },
@@ -112,6 +117,7 @@ describe("getDiffFiles", () => {
   it("filters out files inside a node_modules subdirectory", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts\nlib/node_modules/pkg/index.ts" },
       { stdout: "1\t0\tsrc/foo.ts" },
       { stdout: "" },
@@ -126,6 +132,7 @@ describe("getDiffFiles", () => {
   it("filters out .d.ts declaration files", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts\nsrc/types.d.ts" },
       { stdout: "1\t0\tsrc/foo.ts" },
       { stdout: "" },
@@ -140,6 +147,7 @@ describe("getDiffFiles", () => {
   it("filters files by provided extensions", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts" },
       { stdout: "1\t0\tsrc/foo.ts" },
       { stdout: "" },
@@ -153,7 +161,8 @@ describe("getDiffFiles", () => {
 
   it("uses origin/base ref when it exists", async () => {
     mockGit(
-      { stdout: "abc123" }, // git rev-parse succeeds
+      { stdout: "abc123" }, // git rev-parse --verify succeeds
+      { stdout: "/project" }, // git rev-parse --show-toplevel
       { stdout: "src/foo.ts" }, // git diff --name-only
       { stdout: "1\t0\tsrc/foo.ts" }, // git diff --numstat
       { stdout: "" }, // getAddedLines
@@ -161,13 +170,14 @@ describe("getDiffFiles", () => {
 
     await getDiffFiles("/project", "main");
 
-    const nameOnlyCall = mockExeca.mock.calls[1];
+    const nameOnlyCall = mockExeca.mock.calls[2];
     expect(nameOnlyCall[1]).toContain("origin/main");
   });
 
   it("returns empty addedLines when git diff throws for a file", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/foo.ts" },
       { stdout: "1\t0\tsrc/foo.ts" },
       new Error("diff failed"),
@@ -181,6 +191,7 @@ describe("getDiffFiles", () => {
   it("handles multiple changed files", async () => {
     mockGit(
       new Error("no origin"),
+      { stdout: "/project" },
       { stdout: "src/a.ts\nsrc/b.ts" },
       { stdout: "3\t0\tsrc/a.ts\n2\t1\tsrc/b.ts" },
       { stdout: "@@ -0,0 +1,3 @@\n+a\n+b\n+c" },
