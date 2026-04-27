@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { execa } from "execa";
 import { detectRunner, type RunnerType } from "./runner/detect.js";
 import { runJest } from "./runner/jest.js";
@@ -107,11 +107,19 @@ export async function getDiffFiles(
     // use base as-is (works for commit SHAs, tags, etc.)
   }
 
+  const { stdout: gitRoot } = await execa(
+    "git",
+    ["rev-parse", "--show-toplevel"],
+    { cwd },
+  );
+
   const { stdout: nameOnly } = await execa(
     "git",
     ["diff", baseRef, "--name-only", "--diff-filter=ACM"],
     { cwd },
   );
+
+  const toRelCwd = (p: string) => relative(cwd, join(gitRoot, p));
 
   const allFiles = nameOnly
     .split("\n")
@@ -139,8 +147,9 @@ export async function getDiffFiles(
   const files: DiffFile[] = [];
   for (const filePath of allFiles) {
     const stat = statMap.get(filePath) ?? { additions: 0, deletions: 0 };
+    const relPath = toRelCwd(filePath);
     const addedLines = await getAddedLines(cwd, baseRef, filePath);
-    files.push({ addedLines, path: filePath, ...stat });
+    files.push({ addedLines, path: relPath, ...stat });
   }
 
   return files;
