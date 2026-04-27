@@ -438,19 +438,15 @@ export async function runTypecheck(
   const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
 
   const errorRegex = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.+)$/gm;
-  const allErrors: TypecheckError[] = [];
-  let match: RegExpExecArray | null;
-
-  while ((match = errorRegex.exec(output)) !== null) {
-    const [, rawFile, line, column, code, message] = match;
-    allErrors.push({
+  const allErrors: TypecheckError[] = [...output.matchAll(errorRegex)].map(
+    ([, rawFile, line, column, code, message]) => ({
       code,
       column: Number.parseInt(column, 10),
       file: relative(cwd, resolve(cwd, rawFile)),
       line: Number.parseInt(line, 10),
       message,
-    });
-  }
+    }),
+  );
 
   const diffPathSet = new Set(diffFiles.map((f) => f.path));
   const diffErrors = allErrors.filter((e) => diffPathSet.has(e.file));
@@ -476,11 +472,20 @@ export async function runTypecheck(
   };
 }
 
+function formatTypecheckFileErrors(f: TypecheckFileResult): string {
+  const plural = f.errors.length > 1 ? "s" : "";
+  const lines = [
+    `\n❌ ${f.path} (${f.errors.length} error${plural})`,
+    ...f.errors.map(
+      (err) => `   ${err.line}:${err.column}  ${err.code}  ${err.message}`,
+    ),
+  ];
+  return lines.join("\n");
+}
+
 export function formatTypecheckResult(result: TypecheckResult): string {
   const { files, passed, totalErrors } = result;
-  const out: string[] = [];
-
-  out.push("=== TypeScript Type-Check Report ===\n");
+  const out: string[] = ["=== TypeScript Type-Check Report ===\n"];
 
   if (files.length === 0) {
     out.push("No changed TypeScript files found.");
@@ -494,13 +499,7 @@ export function formatTypecheckResult(result: TypecheckResult): string {
   if (totalErrors > 0) {
     out.push("\n--- Errors by File ---");
     for (const f of files) {
-      if (f.errors.length === 0) continue;
-      out.push(
-        `\n❌ ${f.path} (${f.errors.length} error${f.errors.length > 1 ? "s" : ""})`,
-      );
-      for (const err of f.errors) {
-        out.push(`   ${err.line}:${err.column}  ${err.code}  ${err.message}`);
-      }
+      if (f.errors.length > 0) out.push(formatTypecheckFileErrors(f));
     }
   }
 
