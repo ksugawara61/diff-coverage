@@ -13,6 +13,20 @@ import { runVitest } from "./vitest.js";
 
 const mockExeca = vi.mocked(execa);
 
+function makeDiffFile(path: string, additions = 1): DiffFile {
+  return { addedLines: [], additions, deletions: 0, path };
+}
+
+function getInvocationArgs(): string[] {
+  return mockExeca.mock.calls[0][1] as string[];
+}
+
+function extractCoverageIncludeValues(args: string[]): string[] {
+  return args
+    .map((a, i) => (a === "--coverage.include" ? args[i + 1] : null))
+    .filter((v): v is string => v != null);
+}
+
 describe("runVitest", () => {
   let tmpDir: string;
 
@@ -26,74 +40,61 @@ describe("runVitest", () => {
     await rm(tmpDir, { force: true, recursive: true });
   });
 
-  it("invokes vitest with coverage flags via npx by default", async () => {
-    const options: RunOptions = { cwd: tmpDir };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [1, 2], additions: 2, deletions: 0, path: "src/foo.ts" },
-    ];
-
-    await runVitest(options, diffFiles);
+  it.each([
+    {
+      expectedBin: "npx",
+      expectedFirstArg: "vitest",
+      makeOptions: (): RunOptions => ({ cwd: tmpDir }),
+      name: "via npx by default",
+    },
+    {
+      expectedBin: "pnpm",
+      expectedFirstArg: "vitest",
+      makeOptions: (): RunOptions => ({
+        cwd: tmpDir,
+        testCommand: "pnpm vitest",
+      }),
+      name: "with custom testCommand",
+    },
+  ])("invokes vitest $name", async ({
+    makeOptions,
+    expectedBin,
+    expectedFirstArg,
+  }) => {
+    await runVitest(makeOptions(), [makeDiffFile("src/foo.ts")]);
 
     expect(mockExeca).toHaveBeenCalledOnce();
     const [bin, args] = mockExeca.mock.calls[0] as [string, string[]];
-    expect(bin).toBe("npx");
-    expect(args).toContain("vitest");
-    expect(args).toContain("run");
-    expect(args).toContain("--coverage");
-    expect(args).toContain("--coverage.enabled=true");
-    expect(args).toContain("--coverage.provider=v8");
+    expect(bin).toBe(expectedBin);
+    expect(args[0]).toBe(expectedFirstArg);
   });
 
-  it("uses custom test command when provided", async () => {
-    const options: RunOptions = { cwd: tmpDir, testCommand: "pnpm vitest" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/foo.ts" },
-    ];
+  describe("CLI arguments", () => {
+    it.each([
+      ["run"],
+      ["--coverage"],
+      ["--coverage.enabled=true"],
+      ["--coverage.provider=v8"],
+      ["--coverage.reporter=json"],
+      ["--coverage.reporter=json-summary"],
+    ])("includes %s", async (flag) => {
+      await runVitest({ cwd: tmpDir }, [makeDiffFile("src/foo.ts")]);
+      expect(getInvocationArgs()).toContain(flag);
+    });
 
-    await runVitest(options, diffFiles);
-
-    const [bin, args] = mockExeca.mock.calls[0] as [string, string[]];
-    expect(bin).toBe("pnpm");
-    expect(args[0]).toBe("vitest");
-  });
-
-  it("adds --coverage.include for each diff file", async () => {
-    const options: RunOptions = { cwd: tmpDir };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-      { addedLines: [], additions: 2, deletions: 0, path: "src/b.ts" },
-    ];
-
-    await runVitest(options, diffFiles);
-
-    const args = mockExeca.mock.calls[0][1] as string[];
-    const includeValues = args
-      .map((a, i) => (a === "--coverage.include" ? args[i + 1] : null))
-      .filter(Boolean);
-    expect(includeValues).toContain("src/a.ts");
-    expect(includeValues).toContain("src/b.ts");
-  });
-
-  it("uses json and json-summary coverage reporters", async () => {
-    const options: RunOptions = { cwd: tmpDir };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/foo.ts" },
-    ];
-
-    await runVitest(options, diffFiles);
-
-    const args = mockExeca.mock.calls[0][1] as string[];
-    expect(args).toContain("--coverage.reporter=json");
-    expect(args).toContain("--coverage.reporter=json-summary");
+    it("adds --coverage.include for each diff file", async () => {
+      await runVitest({ cwd: tmpDir }, [
+        makeDiffFile("src/a.ts"),
+        makeDiffFile("src/b.ts", 2),
+      ]);
+      const includes = extractCoverageIncludeValues(getInvocationArgs());
+      expect(includes).toContain("src/a.ts");
+      expect(includes).toContain("src/b.ts");
+    });
   });
 
   it("sets CI=true in environment", async () => {
-    const options: RunOptions = { cwd: tmpDir };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-    ];
-
-    await runVitest(options, diffFiles);
+    await runVitest({ cwd: tmpDir }, [makeDiffFile("src/a.ts")]);
 
     const execaOptions = mockExeca.mock.calls[0].at(-1) as {
       env: Record<string, string>;

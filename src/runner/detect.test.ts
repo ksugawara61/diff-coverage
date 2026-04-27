@@ -15,96 +15,80 @@ describe("detectRunner", () => {
     await rm(tmpDir, { force: true, recursive: true });
   });
 
-  it("detects vitest from vitest.config.ts", async () => {
-    await writeFile(join(tmpDir, "vitest.config.ts"), "export default {}");
+  it.each([
+    { content: "export default {}", filename: "vitest.config.ts" },
+    { content: "module.exports = {}", filename: "vitest.config.js" },
+    { content: "export default {}", filename: "vitest.config.mts" },
+  ])("detects vitest from $filename", async ({ filename, content }) => {
+    await writeFile(join(tmpDir, filename), content);
     expect(await detectRunner(tmpDir)).toBe("vitest");
   });
 
-  it("detects vitest from vitest.config.js", async () => {
-    await writeFile(join(tmpDir, "vitest.config.js"), "module.exports = {}");
-    expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("detects vitest from vitest.config.mts", async () => {
-    await writeFile(join(tmpDir, "vitest.config.mts"), "export default {}");
-    expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("detects vitest from vite.config.ts when it references vitest", async () => {
-    await writeFile(
-      join(tmpDir, "vite.config.ts"),
-      "import { defineConfig } from 'vitest/config'; export default defineConfig({ test: {} })",
-    );
-    expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("does not detect vitest from vite.config.ts without vitest references", async () => {
-    await writeFile(
-      join(tmpDir, "vite.config.ts"),
-      "import { defineConfig } from 'vite'; export default defineConfig({});",
-    );
+  it.each([
+    { content: "export default {}", filename: "jest.config.ts" },
+    { content: "module.exports = {}", filename: "jest.config.js" },
+    { content: "module.exports = {}", filename: "jest.config.cjs" },
+  ])("detects jest from $filename", async ({ filename, content }) => {
+    await writeFile(join(tmpDir, filename), content);
     expect(await detectRunner(tmpDir)).toBe("jest");
   });
 
-  it("detects jest from jest.config.ts", async () => {
-    await writeFile(join(tmpDir, "jest.config.ts"), "export default {}");
-    expect(await detectRunner(tmpDir)).toBe("jest");
+  it.each([
+    {
+      content:
+        "import { defineConfig } from 'vitest/config'; export default defineConfig({ test: {} })",
+      expected: "vitest" as const,
+      name: "references vitest/config",
+    },
+    {
+      content:
+        "import { defineConfig } from 'vite'; export default defineConfig({});",
+      expected: "jest" as const,
+      name: "references plain vite",
+    },
+  ])("detects $expected from vite.config.ts when it $name", async ({
+    content,
+    expected,
+  }) => {
+    await writeFile(join(tmpDir, "vite.config.ts"), content);
+    expect(await detectRunner(tmpDir)).toBe(expected);
   });
 
-  it("detects jest from jest.config.js", async () => {
-    await writeFile(join(tmpDir, "jest.config.js"), "module.exports = {}");
-    expect(await detectRunner(tmpDir)).toBe("jest");
-  });
-
-  it("detects jest from jest.config.cjs", async () => {
-    await writeFile(join(tmpDir, "jest.config.cjs"), "module.exports = {}");
-    expect(await detectRunner(tmpDir)).toBe("jest");
+  it.each([
+    {
+      expected: "jest" as const,
+      name: "package.json with jest key",
+      pkg: { jest: { testEnvironment: "node" } },
+    },
+    {
+      expected: "vitest" as const,
+      name: "package.json scripts containing vitest",
+      pkg: { scripts: { test: "vitest run" } },
+    },
+    {
+      expected: "jest" as const,
+      name: "package.json scripts containing jest",
+      pkg: { scripts: { test: "jest --coverage" } },
+    },
+    {
+      expected: "vitest" as const,
+      name: "package.json devDependencies vitest",
+      pkg: { devDependencies: { vitest: "^2.0.0" } },
+    },
+    {
+      expected: "jest" as const,
+      name: "package.json devDependencies jest",
+      pkg: { devDependencies: { jest: "^29.0.0" } },
+    },
+  ])("detects $expected from $name", async ({ pkg, expected }) => {
+    await writeFile(join(tmpDir, "package.json"), JSON.stringify(pkg));
+    expect(await detectRunner(tmpDir)).toBe(expected);
   });
 
   it("prefers vitest config file over jest config file", async () => {
     await writeFile(join(tmpDir, "vitest.config.ts"), "export default {}");
     await writeFile(join(tmpDir, "jest.config.ts"), "export default {}");
     expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("detects jest from package.json jest key", async () => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify({ jest: { testEnvironment: "node" } }),
-    );
-    expect(await detectRunner(tmpDir)).toBe("jest");
-  });
-
-  it("detects vitest from package.json scripts containing vitest", async () => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify({ scripts: { test: "vitest run" } }),
-    );
-    expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("detects jest from package.json scripts containing jest", async () => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify({ scripts: { test: "jest --coverage" } }),
-    );
-    expect(await detectRunner(tmpDir)).toBe("jest");
-  });
-
-  it("detects vitest from package.json devDependencies", async () => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify({ devDependencies: { vitest: "^2.0.0" } }),
-    );
-    expect(await detectRunner(tmpDir)).toBe("vitest");
-  });
-
-  it("detects jest from package.json devDependencies", async () => {
-    await writeFile(
-      join(tmpDir, "package.json"),
-      JSON.stringify({ devDependencies: { jest: "^29.0.0" } }),
-    );
-    expect(await detectRunner(tmpDir)).toBe("jest");
   });
 
   it("falls back to jest when no config files and no package.json", async () => {
