@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { detectRunner } from "../src/runner/detect.js";
+import { detectRunner } from "./detect.js";
 
 describe("detectRunner", () => {
   let tmpDir: string;

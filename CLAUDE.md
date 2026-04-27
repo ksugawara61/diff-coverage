@@ -24,7 +24,7 @@ pnpm format         # Auto-format with Biome
 
 Run a single test file:
 ```bash
-pnpm vitest run tests/diff.test.ts
+pnpm vitest run src/diff.test.ts
 ```
 
 Run the compiled CLI against an example project:
@@ -85,4 +85,4 @@ Key rules to be aware of:
 
 **Process execution:** All external processes (git, jest, vitest, tsc) are run via `execa`. Tests mock `execa` to avoid real process spawning.
 
-**Test files** live in `tests/` and mirror the source structure. Runner tests live in `tests/runner/`.
+**Test files** are colocated with their source files in `src/`. Each test file sits next to the module it tests (e.g. `src/runner/jest.test.ts` tests `src/runner/jest.ts`).
