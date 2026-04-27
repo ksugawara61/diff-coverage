@@ -3,36 +3,41 @@ name: diff-coverage
 description: Measure test coverage only for files changed in a git diff using Jest or Vitest. Use when checking test coverage of code changes, reviewing uncovered lines in a PR, or enforcing coverage thresholds on changed files.
 when_to_use: Triggered by requests like "check coverage for my changes", "what lines are uncovered in the diff", "measure diff coverage", "are my changes tested", or "coverage report for this PR".
 allowed-tools: Bash(node *)
-disable-model-invocation: false
 ---
 
 # diff-coverage
 
 Measures test coverage scoped only to files changed in a git diff. Reports per-file coverage, uncovered lines, and optionally enforces a threshold (exit code 1 on failure).
 
-## Prerequisites
+## Installation
 
-The CLI must be compiled before first use. Run once from the project root:
+Install as a project-scope skill from the diff-coverage repository root (requires a prior `pnpm build`):
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../node_modules/.bin/tsc" --project "${CLAUDE_SKILL_DIR}/../../../tsconfig.json"
+gh skill install ksugawara61/diff-coverage --scope project
 ```
 
-Or equivalently: `pnpm build` inside the project root.
+Or as a user-scope skill (falls back to `npx diff-coverage` if local build is unavailable):
+
+```bash
+gh skill install ksugawara61/diff-coverage --scope user
+```
 
 ## Commands
 
-All commands use `node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js"` as the base.
+All commands are invoked via the bundled wrapper:
+
+```
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" <command> [options]
+```
 
 ### measure — run coverage for changed files
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js" measure \
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" measure \
   --cwd <project-dir> \
   --base <git-ref>
 ```
-
-Options:
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -44,25 +49,25 @@ Options:
 Example — measure coverage for changes vs `main` in the current project:
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js" measure --cwd . --base main
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" measure --cwd . --base main
 ```
 
 Example — enforce 80% threshold:
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js" measure --cwd . --base main --threshold 80
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" measure --cwd . --base main --threshold 80
 ```
 
 ### diff — list changed files and added lines
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js" diff --cwd . --base main
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" diff --cwd . --base main
 ```
 
 ### detect — identify the test runner
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/../../../dist/cli.js" detect --cwd .
+node "${CLAUDE_SKILL_DIR}/scripts/run.cjs" detect --cwd .
 ```
 
 ## Workflow
