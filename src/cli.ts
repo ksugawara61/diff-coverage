@@ -5,6 +5,7 @@ import {
   formatResult,
   formatTypecheckResult,
   getDiffFiles,
+  loadConfig,
   runCoverage,
   runTypecheck,
 } from "./core.js";
@@ -14,6 +15,7 @@ type MeasureOpts = {
   base: string;
   cmd?: string;
   diffOnly: boolean;
+  exclude: string[];
   json: boolean;
   threshold?: number;
 };
@@ -24,7 +26,13 @@ async function measureFiles(
   extensions: string[],
   runner: RunnerType,
 ): Promise<void> {
-  const diffFiles = await getDiffFiles(cwd, opts.base, extensions);
+  const diffFiles = await getDiffFiles(
+    cwd,
+    opts.base,
+    extensions,
+    undefined,
+    opts.exclude,
+  );
 
   if (diffFiles.length === 0) {
     console.log("No changed source files found.");
@@ -96,6 +104,10 @@ program
   )
   .option("--json", "Output raw JSON")
   .option("--diff-only", "Only show diff files, don't run tests")
+  .option(
+    "--exclude <patterns>",
+    "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
+  )
   .action(async (opts) => {
     const cwd = resolve(opts.cwd);
     const extensions = opts.ext.split(",").map((e: string) => e.trim());
@@ -107,11 +119,19 @@ program
     );
 
     try {
+      const config = await loadConfig(cwd);
+      const exclude = [
+        ...(config.exclude ?? []),
+        ...(opts.exclude
+          ? opts.exclude.split(",").map((e: string) => e.trim())
+          : []),
+      ];
       await measureFiles(
         {
           base: opts.base,
           cmd: opts.cmd,
           diffOnly: opts.diffOnly,
+          exclude,
           json: opts.json,
           threshold: opts.threshold,
         },
@@ -135,11 +155,29 @@ program
     "Comma-separated file extensions",
     "ts,tsx,js,jsx",
   )
+  .option(
+    "--exclude <patterns>",
+    "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
+  )
   .action(async (opts) => {
     const cwd = resolve(opts.cwd);
     const extensions = opts.ext.split(",").map((e: string) => e.trim());
 
-    const files = await getDiffFiles(cwd, opts.base, extensions);
+    const config = await loadConfig(cwd);
+    const exclude = [
+      ...(config.exclude ?? []),
+      ...(opts.exclude
+        ? opts.exclude.split(",").map((e: string) => e.trim())
+        : []),
+    ];
+
+    const files = await getDiffFiles(
+      cwd,
+      opts.base,
+      extensions,
+      undefined,
+      exclude,
+    );
     if (files.length === 0) {
       console.log("No changed source files.");
       return;
