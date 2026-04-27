@@ -99,61 +99,69 @@ describe("getDiffFiles", () => {
     expect(files[0].addedLines).toContain(21);
   });
 
-  it("filters out test files by default", async () => {
+  it.each([
+    {
+      changedFiles: "src/foo.ts\nsrc/foo.test.ts\nsrc/foo.spec.ts",
+      excludeGlobs: undefined,
+      extensions: undefined,
+      name: "test files (.test.ts / .spec.ts) by default",
+    },
+    {
+      changedFiles: "src/foo.ts\nlib/node_modules/pkg/index.ts",
+      excludeGlobs: undefined,
+      extensions: undefined,
+      name: "files inside a node_modules subdirectory",
+    },
+    {
+      changedFiles: "src/foo.ts\nsrc/types.d.ts",
+      excludeGlobs: undefined,
+      extensions: undefined,
+      name: ".d.ts declaration files",
+    },
+    {
+      changedFiles: "src/foo.ts",
+      excludeGlobs: undefined,
+      extensions: ["ts"] as string[],
+      name: "files not matching the provided extension allow-list",
+    },
+    {
+      changedFiles: "src/foo.ts\nsrc/foo.mocks.ts",
+      excludeGlobs: ["*.mocks.ts"] as string[],
+      extensions: undefined,
+      name: "files matching a glob exclude pattern",
+    },
+    {
+      changedFiles: "src/fixtures/data.ts\nsrc/foo.ts",
+      excludeGlobs: ["src/fixtures/**"] as string[],
+      extensions: undefined,
+      name: "files matching a path-anchored glob exclude pattern",
+    },
+    {
+      changedFiles: "src/foo.ts\nsrc/foo.mocks.ts\nsrc/foo.test.ts",
+      excludeGlobs: ["*.mocks.ts"] as string[],
+      extensions: undefined,
+      name: "default regex excludes alongside provided glob excludes",
+    },
+  ])("filters out $name and keeps src/foo.ts", async ({
+    changedFiles,
+    extensions,
+    excludeGlobs,
+  }) => {
     mockGit(
       new Error("no origin"),
       { stdout: "/project" },
-      { stdout: "src/foo.ts\nsrc/foo.test.ts\nsrc/foo.spec.ts" },
+      { stdout: changedFiles },
       { stdout: "1\t0\tsrc/foo.ts" },
       { stdout: "" },
     );
 
-    const files = await getDiffFiles("/project", "main");
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
-  });
-
-  it("filters out files inside a node_modules subdirectory", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/foo.ts\nlib/node_modules/pkg/index.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
+    const files = await getDiffFiles(
+      "/project",
+      "main",
+      extensions,
+      undefined,
+      excludeGlobs,
     );
-
-    const files = await getDiffFiles("/project", "main");
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
-  });
-
-  it("filters out .d.ts declaration files", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/foo.ts\nsrc/types.d.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
-    );
-
-    const files = await getDiffFiles("/project", "main");
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
-  });
-
-  it("filters files by provided extensions", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/foo.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
-    );
-
-    const files = await getDiffFiles("/project", "main", ["ts"]);
 
     expect(files).toHaveLength(1);
     expect(files[0].path).toBe("src/foo.ts");
@@ -186,57 +194,6 @@ describe("getDiffFiles", () => {
     const files = await getDiffFiles("/project", "main");
 
     expect(files[0].addedLines).toEqual([]);
-  });
-
-  it("filters out files matching a glob exclude pattern", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/foo.ts\nsrc/foo.mocks.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
-    );
-
-    const files = await getDiffFiles("/project", "main", undefined, undefined, [
-      "*.mocks.ts",
-    ]);
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
-  });
-
-  it("filters out files matching a path-anchored glob exclude pattern", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/fixtures/data.ts\nsrc/foo.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
-    );
-
-    const files = await getDiffFiles("/project", "main", undefined, undefined, [
-      "src/fixtures/**",
-    ]);
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
-  });
-
-  it("combines default regex excludes with glob excludes", async () => {
-    mockGit(
-      new Error("no origin"),
-      { stdout: "/project" },
-      { stdout: "src/foo.ts\nsrc/foo.mocks.ts\nsrc/foo.test.ts" },
-      { stdout: "1\t0\tsrc/foo.ts" },
-      { stdout: "" },
-    );
-
-    const files = await getDiffFiles("/project", "main", undefined, undefined, [
-      "*.mocks.ts",
-    ]);
-
-    expect(files).toHaveLength(1);
-    expect(files[0].path).toBe("src/foo.ts");
   });
 
   it("handles multiple changed files", async () => {

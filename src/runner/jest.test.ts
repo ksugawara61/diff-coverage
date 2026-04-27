@@ -10,93 +10,77 @@ import { runJest } from "./jest.js";
 
 const mockExeca = vi.mocked(execa);
 
+function makeDiffFile(path: string, additions = 1): DiffFile {
+  return { addedLines: [], additions, deletions: 0, path };
+}
+
+function getInvocationArgs(): string[] {
+  return mockExeca.mock.calls[0][1] as string[];
+}
+
 describe("runJest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("invokes jest with coverage flags via npx by default", async () => {
-    const options: RunOptions = { cwd: "/project" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [1, 2], additions: 2, deletions: 0, path: "src/foo.ts" },
-    ];
-
-    await runJest(options, diffFiles);
+  it.each([
+    {
+      expectedBin: "npx",
+      expectedFirstArg: "jest",
+      name: "via npx by default",
+      options: { cwd: "/project" } as RunOptions,
+    },
+    {
+      expectedBin: "pnpm",
+      expectedFirstArg: "jest",
+      name: "with custom testCommand",
+      options: {
+        cwd: "/project",
+        testCommand: "pnpm jest",
+      } as RunOptions,
+    },
+  ])("invokes jest $name", async ({
+    options,
+    expectedBin,
+    expectedFirstArg,
+  }) => {
+    await runJest(options, [makeDiffFile("src/foo.ts")]);
 
     expect(mockExeca).toHaveBeenCalledOnce();
     const [bin, args] = mockExeca.mock.calls[0] as [string, string[]];
-    expect(bin).toBe("npx");
-    expect(args).toContain("jest");
-    expect(args).toContain("--coverage");
-    expect(args).toContain("--passWithNoTests");
-    expect(args).toContain("--findRelatedTests");
+    expect(bin).toBe(expectedBin);
+    expect(args[0]).toBe(expectedFirstArg);
   });
 
-  it("uses custom test command when provided", async () => {
-    const options: RunOptions = { cwd: "/project", testCommand: "pnpm jest" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/bar.ts" },
-    ];
-
-    await runJest(options, diffFiles);
-
-    const [bin, args] = mockExeca.mock.calls[0] as [string, string[]];
-    expect(bin).toBe("pnpm");
-    expect(args[0]).toBe("jest");
-  });
-
-  it("adds --collectCoverageFrom for each diff file", async () => {
+  describe("CLI arguments", () => {
     const options: RunOptions = { cwd: "/project" };
     const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-      { addedLines: [], additions: 2, deletions: 0, path: "src/b.ts" },
+      makeDiffFile("src/a.ts"),
+      makeDiffFile("src/b.ts", 2),
     ];
 
-    await runJest(options, diffFiles);
-
-    const args = mockExeca.mock.calls[0][1] as string[];
-    expect(args).toContain("--collectCoverageFrom=src/a.ts");
-    expect(args).toContain("--collectCoverageFrom=src/b.ts");
-  });
-
-  it("passes diff file paths as positional arguments for --findRelatedTests", async () => {
-    const options: RunOptions = { cwd: "/project" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-      { addedLines: [], additions: 1, deletions: 0, path: "src/b.ts" },
-    ];
-
-    await runJest(options, diffFiles);
-
-    const args = mockExeca.mock.calls[0][1] as string[];
-    expect(args).toContain("src/a.ts");
-    expect(args).toContain("src/b.ts");
+    it.each([
+      ["--coverage"],
+      ["--passWithNoTests"],
+      ["--findRelatedTests"],
+      ["--coverageReporters=json-summary"],
+      ["--coverageReporters=json"],
+      ["--collectCoverageFrom=src/a.ts"],
+      ["--collectCoverageFrom=src/b.ts"],
+      ["src/a.ts"],
+      ["src/b.ts"],
+    ])("includes %s", async (flag) => {
+      await runJest(options, diffFiles);
+      expect(getInvocationArgs()).toContain(flag);
+    });
   });
 
   it("sets CI=true in environment", async () => {
-    const options: RunOptions = { cwd: "/project" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-    ];
-
-    await runJest(options, diffFiles);
+    await runJest({ cwd: "/project" }, [makeDiffFile("src/a.ts")]);
 
     const execaOptions = mockExeca.mock.calls[0].at(-1) as {
       env: Record<string, string>;
     };
     expect(execaOptions.env).toMatchObject({ CI: "true" });
-  });
-
-  it("uses coverage reporters json-summary and json", async () => {
-    const options: RunOptions = { cwd: "/project" };
-    const diffFiles: DiffFile[] = [
-      { addedLines: [], additions: 1, deletions: 0, path: "src/a.ts" },
-    ];
-
-    await runJest(options, diffFiles);
-
-    const args = mockExeca.mock.calls[0][1] as string[];
-    expect(args).toContain("--coverageReporters=json-summary");
-    expect(args).toContain("--coverageReporters=json");
   });
 });

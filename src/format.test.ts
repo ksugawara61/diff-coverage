@@ -79,29 +79,27 @@ describe("formatResult", () => {
     expect(out).toContain("src/foo.ts");
   });
 
-  it("uses ✅ icon for coverage >= 80%", () => {
-    expect(formatResult(resultWithFile("src/a.ts", 80))).toContain("✅");
-    expect(formatResult(resultWithFile("src/a.ts", 100))).toContain("✅");
+  it.each([
+    [100, "✅"],
+    [80, "✅"],
+    [79, "⚠️"],
+    [50, "⚠️"],
+    [49, "❌"],
+    [0, "❌"],
+  ])("renders %d%% coverage with %s icon", (pct, icon) => {
+    expect(formatResult(resultWithFile("src/a.ts", pct))).toContain(icon);
   });
 
-  it("uses ⚠️ icon for coverage >= 50% and < 80%", () => {
-    expect(formatResult(resultWithFile("src/a.ts", 50))).toContain("⚠️");
-    expect(formatResult(resultWithFile("src/a.ts", 79))).toContain("⚠️");
-  });
-
-  it("uses ❌ icon for coverage < 50%", () => {
-    expect(formatResult(resultWithFile("src/a.ts", 0))).toContain("❌");
-    expect(formatResult(resultWithFile("src/a.ts", 49))).toContain("❌");
-  });
-
-  it("shows PASS when line coverage meets threshold", () => {
-    const out = formatResult(resultWithFile("src/a.ts", 80), 80);
-    expect(out).toContain("✅ PASS");
-  });
-
-  it("shows FAIL when line coverage is below threshold", () => {
-    const out = formatResult(resultWithFile("src/a.ts", 60), 80);
-    expect(out).toContain("❌ FAIL");
+  it.each([
+    { expected: "✅ PASS", pct: 80, threshold: 80 },
+    { expected: "❌ FAIL", pct: 60, threshold: 80 },
+  ])("shows $expected when coverage is $pct% against threshold $threshold%", ({
+    pct,
+    threshold,
+    expected,
+  }) => {
+    const out = formatResult(resultWithFile("src/a.ts", pct), threshold);
+    expect(out).toContain(expected);
   });
 
   it("does not show threshold line when threshold is not provided", () => {
@@ -144,97 +142,77 @@ describe("formatTypecheckResult", () => {
     };
   }
 
+  function passingTypecheckResult(): TypecheckResult {
+    return makeTypecheckResult({
+      diffFiles: ["src/foo.ts"],
+      files: [{ errors: [], path: "src/foo.ts" }],
+      passed: true,
+      totalErrors: 0,
+    });
+  }
+
+  function failingTypecheckResult(): TypecheckResult {
+    return makeTypecheckResult({
+      diffFiles: ["src/foo.ts"],
+      files: [
+        {
+          errors: [
+            {
+              code: "TS2322",
+              column: 5,
+              file: "src/foo.ts",
+              line: 10,
+              message: "Type 'string' is not assignable to type 'number'.",
+            },
+          ],
+          path: "src/foo.ts",
+        },
+      ],
+      passed: false,
+      totalErrors: 1,
+    });
+  }
+
   it("shows no-files message when files list is empty", () => {
     const out = formatTypecheckResult(makeTypecheckResult());
     expect(out).toContain("No changed TypeScript files found");
   });
 
-  it("shows file count and error count", () => {
-    const out = formatTypecheckResult(
-      makeTypecheckResult({
-        diffFiles: ["src/foo.ts"],
-        files: [{ errors: [], path: "src/foo.ts" }],
-        passed: true,
-        totalErrors: 0,
-      }),
-    );
-    expect(out).toContain("Files checked: 1");
-    expect(out).toContain("Total errors: 0");
+  describe("with a passing result", () => {
+    it("shows file count and error count", () => {
+      const out = formatTypecheckResult(passingTypecheckResult());
+      expect(out).toContain("Files checked: 1");
+      expect(out).toContain("Total errors: 0");
+    });
+
+    it("shows PASS status", () => {
+      expect(formatTypecheckResult(passingTypecheckResult())).toContain(
+        "✅ PASS",
+      );
+    });
+
+    it("does not show error section", () => {
+      expect(formatTypecheckResult(passingTypecheckResult())).not.toContain(
+        "Errors by File",
+      );
+    });
   });
 
-  it("shows PASS status when no errors", () => {
-    const out = formatTypecheckResult(
-      makeTypecheckResult({
-        diffFiles: ["src/foo.ts"],
-        files: [{ errors: [], path: "src/foo.ts" }],
-        passed: true,
-        totalErrors: 0,
-      }),
-    );
-    expect(out).toContain("✅ PASS");
-  });
+  describe("with a failing result", () => {
+    it("shows FAIL status", () => {
+      expect(formatTypecheckResult(failingTypecheckResult())).toContain(
+        "❌ FAIL",
+      );
+    });
 
-  it("shows FAIL status when there are errors", () => {
-    const out = formatTypecheckResult(
-      makeTypecheckResult({
-        diffFiles: ["src/foo.ts"],
-        files: [
-          {
-            errors: [
-              {
-                code: "TS2322",
-                column: 5,
-                file: "src/foo.ts",
-                line: 10,
-                message: "Type 'string' is not assignable to type 'number'.",
-              },
-            ],
-            path: "src/foo.ts",
-          },
-        ],
-        passed: false,
-        totalErrors: 1,
-      }),
-    );
-    expect(out).toContain("❌ FAIL");
-  });
-
-  it("shows error details when errors exist", () => {
-    const out = formatTypecheckResult(
-      makeTypecheckResult({
-        diffFiles: ["src/foo.ts"],
-        files: [
-          {
-            errors: [
-              {
-                code: "TS2322",
-                column: 5,
-                file: "src/foo.ts",
-                line: 10,
-                message: "Type 'string' is not assignable to type 'number'.",
-              },
-            ],
-            path: "src/foo.ts",
-          },
-        ],
-        passed: false,
-        totalErrors: 1,
-      }),
-    );
-    expect(out).toContain("TS2322");
-    expect(out).toContain("10:5");
-    expect(out).toContain("src/foo.ts");
-  });
-
-  it("does not show error section when no errors", () => {
-    const out = formatTypecheckResult(
-      makeTypecheckResult({
-        diffFiles: ["src/foo.ts"],
-        files: [{ errors: [], path: "src/foo.ts" }],
-        passed: true,
-        totalErrors: 0,
-      }),
-    );
-    expect(out).not.toContain("Errors by File");
+    it.each([
+      ["TS2322"],
+      ["10:5"],
+      ["src/foo.ts"],
+    ])("shows error detail %s", (fragment) => {
+      expect(formatTypecheckResult(failingTypecheckResult())).toContain(
+        fragment,
+      );
+    });
   });
 });

@@ -14,16 +14,23 @@ describe("loadConfig", () => {
     vi.clearAllMocks();
   });
 
-  it("returns empty config when no config file exists", async () => {
-    mockReadFile.mockRejectedValueOnce(new Error("ENOENT"));
-    const config = await loadConfig("/project");
-    expect(config).toEqual({});
-  });
-
-  it("returns empty config when config file is malformed JSON", async () => {
-    mockReadFile.mockResolvedValueOnce("not json" as never);
-    const config = await loadConfig("/project");
-    expect(config).toEqual({});
+  it.each([
+    {
+      name: "no config file exists",
+      setup: () => mockReadFile.mockRejectedValueOnce(new Error("ENOENT")),
+    },
+    {
+      name: "config file is malformed JSON",
+      setup: () => mockReadFile.mockResolvedValueOnce("not json" as never),
+    },
+    {
+      name: "exclude is not present",
+      setup: () =>
+        mockReadFile.mockResolvedValueOnce(JSON.stringify({}) as never),
+    },
+  ])("returns empty config when $name", async ({ setup }) => {
+    setup();
+    expect(await loadConfig("/project")).toEqual({});
   });
 
   it("loads exclude patterns from config file", async () => {
@@ -32,12 +39,6 @@ describe("loadConfig", () => {
     );
     const config = await loadConfig("/project");
     expect(config.exclude).toEqual(["*.mocks.ts", "src/fixtures/**"]);
-  });
-
-  it("returns empty config when exclude is not present", async () => {
-    mockReadFile.mockResolvedValueOnce(JSON.stringify({}) as never);
-    const config = await loadConfig("/project");
-    expect(config).toEqual({});
   });
 
   it("reads .diff-coverage.json from the given cwd", async () => {
@@ -51,58 +52,140 @@ describe("loadConfig", () => {
 });
 
 describe("globToRegex", () => {
-  it("matches filename with * anywhere in path", () => {
-    const re = new RegExp(globToRegex("*.mocks.ts"));
-    expect(re.test("src/foo.mocks.ts")).toBe(true);
-    expect(re.test("foo.mocks.ts")).toBe(true);
-    expect(re.test("src/deep/foo.mocks.ts")).toBe(true);
-  });
-
-  it("does not match different extensions with *", () => {
-    const re = new RegExp(globToRegex("*.mocks.ts"));
-    expect(re.test("src/foo.test.ts")).toBe(false);
-    expect(re.test("src/foo.mocks.js")).toBe(false);
-  });
-
-  it("does not match across path separators with *", () => {
-    const re = new RegExp(globToRegex("*.ts"));
-    expect(re.test("src/foo.ts")).toBe(true);
-    // * alone should not match a full path like src/foo — but it should match filenames
-    expect(re.test("src/sub/bar.ts")).toBe(true);
-  });
-
-  it("matches zero or more path segments with **/ prefix", () => {
-    const re = new RegExp(globToRegex("**/*.mocks.ts"));
-    expect(re.test("foo.mocks.ts")).toBe(true);
-    expect(re.test("src/foo.mocks.ts")).toBe(true);
-    expect(re.test("src/utils/foo.mocks.ts")).toBe(true);
-  });
-
-  it("anchors patterns containing slash to the start of the path", () => {
-    const re = new RegExp(globToRegex("src/*.mocks.ts"));
-    expect(re.test("src/foo.mocks.ts")).toBe(true);
-    expect(re.test("other/foo.mocks.ts")).toBe(false);
-    expect(re.test("other/src/foo.mocks.ts")).toBe(false);
-  });
-
-  it("matches any file under a directory with src/**", () => {
-    const re = new RegExp(globToRegex("src/**"));
-    expect(re.test("src/foo.ts")).toBe(true);
-    expect(re.test("src/utils/bar.ts")).toBe(true);
-    expect(re.test("other/foo.ts")).toBe(false);
-  });
-
-  it("matches files with intermediate directories using src/**/file", () => {
-    const re = new RegExp(globToRegex("src/**/*.mocks.ts"));
-    expect(re.test("src/foo.mocks.ts")).toBe(true);
-    expect(re.test("src/utils/foo.mocks.ts")).toBe(true);
-    expect(re.test("src/a/b/foo.mocks.ts")).toBe(true);
-    expect(re.test("other/foo.mocks.ts")).toBe(false);
-  });
-
-  it("matches single character with ?", () => {
-    const re = new RegExp(globToRegex("foo?.ts"));
-    expect(re.test("src/fooa.ts")).toBe(true);
-    expect(re.test("src/foo.ts")).toBe(false);
+  it.each([
+    {
+      expected: true,
+      input: "src/foo.mocks.ts",
+      name: "matches filename with * anywhere in path",
+      pattern: "*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "foo.mocks.ts",
+      name: "matches root-level filename with *",
+      pattern: "*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/deep/foo.mocks.ts",
+      name: "matches deeply nested filename with *",
+      pattern: "*.mocks.ts",
+    },
+    {
+      expected: false,
+      input: "src/foo.test.ts",
+      name: "does not match different file suffix",
+      pattern: "*.mocks.ts",
+    },
+    {
+      expected: false,
+      input: "src/foo.mocks.js",
+      name: "does not match different extension",
+      pattern: "*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/foo.ts",
+      name: "matches at root with *",
+      pattern: "*.ts",
+    },
+    {
+      expected: true,
+      input: "src/sub/bar.ts",
+      name: "matches nested file with *",
+      pattern: "*.ts",
+    },
+    {
+      expected: true,
+      input: "foo.mocks.ts",
+      name: "matches root-level filename with **/ prefix",
+      pattern: "**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/foo.mocks.ts",
+      name: "matches one-segment-deep filename with **/ prefix",
+      pattern: "**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/utils/foo.mocks.ts",
+      name: "matches multi-segment-deep filename with **/ prefix",
+      pattern: "**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/foo.mocks.ts",
+      name: "matches when slash-anchored pattern starts at root",
+      pattern: "src/*.mocks.ts",
+    },
+    {
+      expected: false,
+      input: "other/foo.mocks.ts",
+      name: "rejects when slash-anchored pattern misses root prefix",
+      pattern: "src/*.mocks.ts",
+    },
+    {
+      expected: false,
+      input: "other/src/foo.mocks.ts",
+      name: "rejects when slash-anchored pattern is shifted into a subdir",
+      pattern: "src/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/foo.ts",
+      name: "matches direct child with dir/**",
+      pattern: "src/**",
+    },
+    {
+      expected: true,
+      input: "src/utils/bar.ts",
+      name: "matches deep descendant with dir/**",
+      pattern: "src/**",
+    },
+    {
+      expected: false,
+      input: "other/foo.ts",
+      name: "rejects sibling directory with dir/**",
+      pattern: "src/**",
+    },
+    {
+      expected: true,
+      input: "src/foo.mocks.ts",
+      name: "matches direct child with dir/**/file",
+      pattern: "src/**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/utils/foo.mocks.ts",
+      name: "matches one-deep child with dir/**/file",
+      pattern: "src/**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/a/b/foo.mocks.ts",
+      name: "matches two-deep child with dir/**/file",
+      pattern: "src/**/*.mocks.ts",
+    },
+    {
+      expected: false,
+      input: "other/foo.mocks.ts",
+      name: "rejects sibling directory with dir/**/file",
+      pattern: "src/**/*.mocks.ts",
+    },
+    {
+      expected: true,
+      input: "src/fooa.ts",
+      name: "matches single character with ?",
+      pattern: "foo?.ts",
+    },
+    {
+      expected: false,
+      input: "src/foo.ts",
+      name: "rejects when ? has no character to match",
+      pattern: "foo?.ts",
+    },
+  ])("$name", ({ pattern, input, expected }) => {
+    expect(new RegExp(globToRegex(pattern)).test(input)).toBe(expected);
   });
 });
