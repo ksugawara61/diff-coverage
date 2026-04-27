@@ -95,7 +95,7 @@ describe("runVitest", () => {
 
     await runVitest(options, diffFiles);
 
-    const execaOptions = mockExeca.mock.calls[0][2] as {
+    const execaOptions = mockExeca.mock.calls[0].at(-1) as {
       env: Record<string, string>;
     };
     expect(execaOptions.env).toMatchObject({ CI: "true" });
