@@ -47,9 +47,9 @@ node dist/mcp.js
 
 The project has three entry points that all consume the same core module:
 
-- **`cli.ts`** — Commander-based CLI (`measure`, `diff`, `detect`, `typecheck` subcommands)
-- **`mcp.ts`** — MCP server wrapping core functions as tools for Claude Code
-- **`core.ts`** — All business logic; the other two files are thin wrappers
+- **`src/cli.ts`** — Commander-based CLI (`measure`, `diff`, `detect`, `typecheck` subcommands)
+- **`src/mcp.ts`** — MCP server wrapping core functions as tools for Claude Code
+- **`src/core.ts`** — All business logic; the other two files are thin wrappers
 
 ### Data flow for `measure`
 
@@ -62,12 +62,12 @@ The project has three entry points that all consume the same core module:
 
 ### Runner differences
 
-- **Jest** (`runner/jest.ts`): uses `--collectCoverageFrom` per file with `--findRelatedTests`
-- **Vitest** (`runner/vitest.ts`): uses `--coverage.include` patterns; post-processes `coverage-final.json` to normalize Vitest's relative paths back to absolute paths (a compatibility quirk)
+- **Jest** (`src/runner/jest.ts`): uses `--collectCoverageFrom` per file with `--findRelatedTests`
+- **Vitest** (`src/runner/vitest.ts`): uses `--coverage.include` patterns; post-processes `coverage-final.json` to normalize Vitest's relative paths back to absolute paths (a compatibility quirk)
 
 ### MCP tools
 
-`mcp.ts` exposes four tools: `measure_diff_coverage`, `get_diff_files`, `get_uncovered_lines`, `detect_runner`. All use Zod for parameter validation and return both a formatted text string and structured JSON in the content array.
+`src/mcp.ts` exposes four tools: `measure_diff_coverage`, `get_diff_files`, `get_uncovered_lines`, `detect_runner`. All use Zod for parameter validation and return both a formatted text string and structured JSON in the content array.
 
 ## Code Conventions
 
