@@ -11,3 +11,5 @@ pre-push:
       run: pnpm typecheck
     test:
       run: pnpm test
+    coverage:
+      run: pnpm coverage
