@@ -9,10 +9,10 @@ export const parseCsv = (value: string): string[] =>
 export const parseCsvOption = (value: string | undefined): string[] =>
   value ? parseCsv(value) : [];
 
-export const resolveExcludePatterns = async (
+export const mergeExcludePatterns = async (
   cwd: string,
-  excludeOption: string | undefined,
+  extras: string[] | undefined,
 ): Promise<string[]> => {
   const config = await loadConfig(cwd);
-  return [...(config.exclude ?? []), ...parseCsvOption(excludeOption)];
+  return [...(config.exclude ?? []), ...(extras ?? [])];
 };
