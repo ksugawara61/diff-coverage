@@ -1,46 +1,15 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import type { RunnerType } from "../../runner/detect.js";
+import type { z } from "zod";
 import {
   GhNotAuthenticatedError,
   GhNotInstalledError,
 } from "../../shared/github.js";
 import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
-import {
-  formatReviewResult,
-  NoPullRequestError,
-  type ReviewOptions,
-  runReview,
-} from "./review.js";
+import { formatReviewResult, NoPullRequestError, runReview } from "./review.js";
+import { ReviewCLIOptsSchema } from "./schema.js";
 
-type ReviewCliOptions = {
-  base: string;
-  cwd: string;
-  dryRun?: boolean;
-  exclude?: string;
-  ext: string;
-  pr?: number;
-  runner: RunnerType | "auto";
-  threshold?: number;
-};
-
-const parseReviewCliOptions = async (
-  rawOpts: ReviewCliOptions,
-): Promise<ReviewOptions> => {
-  const cwd = resolve(rawOpts.cwd);
-  const extensions = parseCsv(rawOpts.ext);
-  const exclude = await resolveExcludePatterns(cwd, rawOpts.exclude);
-  return {
-    base: rawOpts.base,
-    cwd,
-    dryRun: rawOpts.dryRun,
-    exclude,
-    extensions,
-    pr: rawOpts.pr,
-    runner: rawOpts.runner,
-    threshold: rawOpts.threshold,
-  };
-};
+type ReviewCliOptions = z.infer<typeof ReviewCLIOptsSchema>;
 
 const handleReviewError = (err: unknown): never => {
   if (err instanceof GhNotInstalledError) {
@@ -59,18 +28,37 @@ const handleReviewError = (err: unknown): never => {
   process.exit(1);
 };
 
-const reviewAction = async (rawOpts: ReviewCliOptions): Promise<void> => {
+const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
+  const cwd = resolve(opts.cwd);
+  const extensions = parseCsv(opts.ext);
+  const exclude = await resolveExcludePatterns(cwd, opts.exclude);
+
   try {
-    const options = await parseReviewCliOptions(rawOpts);
-    console.error(
-      `📝 Reviewing PR for current branch (base: ${options.base})...`,
-    );
-    const outcome = await runReview(options);
+    console.error(`📝 Reviewing PR for current branch (base: ${opts.base})...`);
+    const outcome = await runReview({
+      base: opts.base,
+      cwd,
+      dryRun: opts.dryRun,
+      exclude,
+      extensions,
+      pr: opts.pr,
+      runner: opts.runner,
+      threshold: opts.threshold,
+    });
     console.log(formatReviewResult(outcome));
     if (outcome.thresholdMet === false) process.exit(1);
   } catch (err) {
     handleReviewError(err);
   }
+};
+
+const reviewAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = ReviewCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runReviewCommand(parsed.data);
 };
 
 export const registerReviewCommand = (program: Command): void => {

@@ -1,38 +1,29 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import type { RunnerType } from "../../runner/detect.js";
+import type { z } from "zod";
 import { runCoverage } from "../../shared/coverage.js";
 import { getDiffFiles } from "../../shared/diff.js";
 import { formatResult } from "../../shared/format.js";
 import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
 import { resolveRunner } from "../../shared/runner.js";
+import { MeasureCLIOptsSchema } from "./schema.js";
 
-type MeasureCliOptions = {
-  base: string;
-  cmd?: string;
-  cwd: string;
-  diffOnly?: boolean;
-  exclude?: string;
-  ext: string;
-  json?: boolean;
-  runner: RunnerType | "auto";
-  threshold?: number;
-};
+type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;
 
-const measureAction = async (rawOpts: MeasureCliOptions): Promise<void> => {
-  const cwd = resolve(rawOpts.cwd);
-  const extensions = parseCsv(rawOpts.ext);
-  const runner = await resolveRunner(cwd, rawOpts.runner);
+const runMeasure = async (opts: MeasureCliOptions): Promise<void> => {
+  const cwd = resolve(opts.cwd);
+  const extensions = parseCsv(opts.ext);
+  const runner = await resolveRunner(cwd, opts.runner);
 
   console.error(
-    `📊 Measuring diff coverage against ${rawOpts.base} (runner: ${runner})...`,
+    `📊 Measuring diff coverage against ${opts.base} (runner: ${runner})...`,
   );
 
   try {
-    const exclude = await resolveExcludePatterns(cwd, rawOpts.exclude);
+    const exclude = await resolveExcludePatterns(cwd, opts.exclude);
     const diffFiles = await getDiffFiles(
       cwd,
-      rawOpts.base,
+      opts.base,
       extensions,
       undefined,
       exclude,
@@ -47,7 +38,7 @@ const measureAction = async (rawOpts: MeasureCliOptions): Promise<void> => {
       `📁 Changed files: ${diffFiles.map((f) => f.path).join(", ")}`,
     );
 
-    if (rawOpts.diffOnly) {
+    if (opts.diffOnly) {
       console.log(diffFiles.map((f) => f.path).join("\n"));
       process.exit(0);
     }
@@ -57,24 +48,24 @@ const measureAction = async (rawOpts: MeasureCliOptions): Promise<void> => {
 
     const result = await runCoverage(
       {
-        base: rawOpts.base,
+        base: opts.base,
         cwd,
         extensions,
         runner,
-        testCommand: rawOpts.cmd,
+        testCommand: opts.cmd,
       },
       diffFiles,
     );
 
-    if (rawOpts.json) {
+    if (opts.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
-      console.log(formatResult(result, rawOpts.threshold));
+      console.log(formatResult(result, opts.threshold));
     }
 
     if (
-      rawOpts.threshold !== undefined &&
-      result.summary.lines.pct < rawOpts.threshold
+      opts.threshold !== undefined &&
+      result.summary.lines.pct < opts.threshold
     ) {
       process.exit(1);
     }
@@ -82,6 +73,15 @@ const measureAction = async (rawOpts: MeasureCliOptions): Promise<void> => {
     console.error("Error:", err instanceof Error ? err.message : err);
     process.exit(1);
   }
+};
+
+const measureAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = MeasureCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runMeasure(parsed.data);
 };
 
 export const registerMeasureCommand = (program: Command): void => {
