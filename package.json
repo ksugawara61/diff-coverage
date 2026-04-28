@@ -3,10 +3,10 @@
     "diff-coverage": "./dist/cli.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "commander": "^13.0.0",
     "execa": "^9.5.2",
-    "zod": "^3.24.0"
+    "zod": "^4.3.6"
   },
   "description": "Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー",
   "devDependencies": {
