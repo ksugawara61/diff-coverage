@@ -1,14 +1,14 @@
 import { type DiffFile, getDiffFiles } from "../../shared/diff.js";
 import { mergeExcludePatterns } from "../../shared/options.js";
 
-export type DiffFilesOptions = {
+type DiffFilesOptions = {
   base?: string;
   cwd: string;
   exclude?: string[];
   extensions?: string[];
 };
 
-export type DiffFilesOutcome = {
+type DiffFilesOutcome = {
   files: DiffFile[];
 };
 

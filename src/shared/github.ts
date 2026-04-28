@@ -1,6 +1,6 @@
 import { type ExecaError, execa } from "execa";
 
-export type RepoSlug = { owner: string; repo: string };
+type RepoSlug = { owner: string; repo: string };
 
 export type GitHubPullRequest = {
   baseRefName: string;
@@ -28,7 +28,7 @@ export type ReviewCommentInput = {
   start_side?: "RIGHT";
 };
 
-export type CreateReviewParams = {
+type CreateReviewParams = {
   body: string;
   comments: ReviewCommentInput[];
   commitId: string;
@@ -56,7 +56,7 @@ export class GhNotAuthenticatedError extends Error {
   }
 }
 
-export class GhApiError extends Error {
+class GhApiError extends Error {
   code = "GH_API" as const;
   constructor(message: string) {
     super(message);

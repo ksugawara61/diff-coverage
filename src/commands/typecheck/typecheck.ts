@@ -2,7 +2,7 @@ import { relative, resolve } from "node:path";
 import { execa } from "execa";
 import type { DiffFile } from "../../shared/diff.js";
 
-export type TypecheckError = {
+type TypecheckError = {
   code: string;
   column: number;
   file: string;

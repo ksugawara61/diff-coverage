@@ -28,6 +28,3 @@ export const runJest = async (
     reject: false,
   });
 };
-
-// Jest outputs to coverage/ by default
-export const JEST_COVERAGE_DIR = "coverage";

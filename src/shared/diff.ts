@@ -9,8 +9,8 @@ export type DiffFile = {
   path: string;
 };
 
-export const DEFAULT_EXTENSIONS = ["ts", "tsx", "js", "jsx", "mts", "cts"];
-export const DEFAULT_EXCLUDE = [
+const DEFAULT_EXTENSIONS = ["ts", "tsx", "js", "jsx", "mts", "cts"];
+const DEFAULT_EXCLUDE = [
   "\\.test\\.",
   "\\.spec\\.",
   "__tests__",
