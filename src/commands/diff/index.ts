@@ -1,23 +1,21 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { z } from "zod";
 import { getDiffFiles } from "../../shared/diff.js";
 import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
+import { DiffCLIOptsSchema } from "./schema.js";
 
-type DiffCliOptions = {
-  base: string;
-  cwd: string;
-  exclude?: string;
-  ext: string;
-};
+type DiffCliOptions = z.infer<typeof DiffCLIOptsSchema>;
 
-const diffAction = async (rawOpts: DiffCliOptions): Promise<void> => {
-  const cwd = resolve(rawOpts.cwd);
-  const extensions = parseCsv(rawOpts.ext);
-  const exclude = await resolveExcludePatterns(cwd, rawOpts.exclude);
+const diffAction = async (rawOpts: unknown): Promise<void> => {
+  const opts: DiffCliOptions = DiffCLIOptsSchema.parse(rawOpts);
+  const cwd = resolve(opts.cwd);
+  const extensions = parseCsv(opts.ext);
+  const exclude = await resolveExcludePatterns(cwd, opts.exclude);
 
   const files = await getDiffFiles(
     cwd,
-    rawOpts.base,
+    opts.base,
     extensions,
     undefined,
     exclude,

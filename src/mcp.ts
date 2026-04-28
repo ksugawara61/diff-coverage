@@ -10,15 +10,14 @@ import { loadConfig } from "./shared/config.js";
 import { type FileDetail, runCoverage } from "./shared/coverage.js";
 import { getDiffFiles } from "./shared/diff.js";
 import { formatResult } from "./shared/format.js";
+import { RunnerEnumSchema } from "./shared/schema.js";
 
 const server = new McpServer({
   name: "diff-coverage",
   version: "0.1.0",
 });
 
-const RunnerSchema = z
-  .enum(["jest", "vitest", "auto"])
-  .optional()
+const RunnerSchema = RunnerEnumSchema.optional()
   .default("auto")
   .describe(
     "Test runner to use. 'auto' detects from vitest.config.* / jest.config.* / package.json",

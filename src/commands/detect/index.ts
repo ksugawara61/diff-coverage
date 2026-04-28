@@ -1,13 +1,14 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
+import type { z } from "zod";
 import { detectRunner } from "../../runner/detect.js";
+import { DetectCLIOptsSchema } from "./schema.js";
 
-type DetectCliOptions = {
-  cwd: string;
-};
+type DetectCliOptions = z.infer<typeof DetectCLIOptsSchema>;
 
-const detectAction = async (rawOpts: DetectCliOptions): Promise<void> => {
-  const cwd = resolve(rawOpts.cwd);
+const detectAction = async (rawOpts: unknown): Promise<void> => {
+  const opts: DetectCliOptions = DetectCLIOptsSchema.parse(rawOpts);
+  const cwd = resolve(opts.cwd);
   const runner = await detectRunner(cwd);
   console.log(`Detected runner: ${runner}`);
 };
