@@ -9,8 +9,9 @@ import { runTypecheck } from "./typecheck.js";
 
 type TypecheckCliOptions = z.infer<typeof TypecheckCLIOptsSchema>;
 
-const typecheckAction = async (rawOpts: unknown): Promise<void> => {
-  const opts: TypecheckCliOptions = TypecheckCLIOptsSchema.parse(rawOpts);
+const runTypecheckCommand = async (
+  opts: TypecheckCliOptions,
+): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
 
@@ -44,6 +45,15 @@ const typecheckAction = async (rawOpts: unknown): Promise<void> => {
     console.error("Error:", err instanceof Error ? err.message : err);
     process.exit(1);
   }
+};
+
+const typecheckAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = TypecheckCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runTypecheckCommand(parsed.data);
 };
 
 export const registerTypecheckCommand = (program: Command): void => {

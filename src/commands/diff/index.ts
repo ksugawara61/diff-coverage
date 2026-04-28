@@ -7,8 +7,7 @@ import { DiffCLIOptsSchema } from "./schema.js";
 
 type DiffCliOptions = z.infer<typeof DiffCLIOptsSchema>;
 
-const diffAction = async (rawOpts: unknown): Promise<void> => {
-  const opts: DiffCliOptions = DiffCLIOptsSchema.parse(rawOpts);
+const runDiff = async (opts: DiffCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const exclude = await resolveExcludePatterns(cwd, opts.exclude);
@@ -28,6 +27,15 @@ const diffAction = async (rawOpts: unknown): Promise<void> => {
   for (const file of files) {
     console.log(`${file.path}  (+${file.additions}/-${file.deletions})`);
   }
+};
+
+const diffAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = DiffCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runDiff(parsed.data);
 };
 
 export const registerDiffCommand = (program: Command): void => {

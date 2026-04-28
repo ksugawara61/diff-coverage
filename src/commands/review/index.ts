@@ -28,8 +28,7 @@ const handleReviewError = (err: unknown): never => {
   process.exit(1);
 };
 
-const reviewAction = async (rawOpts: unknown): Promise<void> => {
-  const opts: ReviewCliOptions = ReviewCLIOptsSchema.parse(rawOpts);
+const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const exclude = await resolveExcludePatterns(cwd, opts.exclude);
@@ -51,6 +50,15 @@ const reviewAction = async (rawOpts: unknown): Promise<void> => {
   } catch (err) {
     handleReviewError(err);
   }
+};
+
+const reviewAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = ReviewCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runReviewCommand(parsed.data);
 };
 
 export const registerReviewCommand = (program: Command): void => {

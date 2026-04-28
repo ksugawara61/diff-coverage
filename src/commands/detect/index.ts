@@ -6,11 +6,19 @@ import { DetectCLIOptsSchema } from "./schema.js";
 
 type DetectCliOptions = z.infer<typeof DetectCLIOptsSchema>;
 
-const detectAction = async (rawOpts: unknown): Promise<void> => {
-  const opts: DetectCliOptions = DetectCLIOptsSchema.parse(rawOpts);
+const runDetect = async (opts: DetectCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const runner = await detectRunner(cwd);
   console.log(`Detected runner: ${runner}`);
+};
+
+const detectAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = DetectCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runDetect(parsed.data);
 };
 
 export const registerDetectCommand = (program: Command): void => {

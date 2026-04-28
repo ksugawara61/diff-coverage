@@ -10,8 +10,7 @@ import { MeasureCLIOptsSchema } from "./schema.js";
 
 type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;
 
-const measureAction = async (rawOpts: unknown): Promise<void> => {
-  const opts: MeasureCliOptions = MeasureCLIOptsSchema.parse(rawOpts);
+const runMeasure = async (opts: MeasureCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const runner = await resolveRunner(cwd, opts.runner);
@@ -74,6 +73,15 @@ const measureAction = async (rawOpts: unknown): Promise<void> => {
     console.error("Error:", err instanceof Error ? err.message : err);
     process.exit(1);
   }
+};
+
+const measureAction = async (rawOpts: unknown): Promise<void> => {
+  const parsed = MeasureCLIOptsSchema.safeParse(rawOpts);
+  if (!parsed.success) {
+    console.error(parsed.error.message);
+    process.exit(1);
+  }
+  await runMeasure(parsed.data);
 };
 
 export const registerMeasureCommand = (program: Command): void => {
