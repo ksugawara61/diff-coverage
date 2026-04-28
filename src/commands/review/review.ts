@@ -1,13 +1,11 @@
 import { createHash } from "node:crypto";
 import { execa } from "execa";
-import { loadConfig } from "../../shared/config.js";
-import {
-  type DiffCoverageResult,
-  type FileCoverage,
-  type RunOptions,
-  runCoverage,
+import type {
+  DiffCoverageResult,
+  FileCoverage,
+  RunOptions,
 } from "../../shared/coverage.js";
-import { type DiffFile, getDiffFiles } from "../../shared/diff.js";
+import type { DiffFile } from "../../shared/diff.js";
 import {
   createReview,
   ensureGhAuthenticated,
@@ -19,6 +17,7 @@ import {
   parseRepoSlug,
   type ReviewCommentInput,
 } from "../../shared/github.js";
+import { runMeasure } from "../measure/measure.js";
 
 export type ReviewOptions = {
   base?: string;
@@ -289,38 +288,6 @@ const resolvePr = async (args: {
   return pr;
 };
 
-const computeThresholdMet = (
-  result: DiffCoverageResult,
-  threshold?: number,
-): boolean | null => {
-  if (threshold === undefined) return null;
-  return result.summary.lines.pct >= threshold;
-};
-
-const runMeasurement = async (
-  opts: ReviewOptions,
-): Promise<{ coverage: DiffCoverageResult; diffFiles: DiffFile[] }> => {
-  const config = await loadConfig(opts.cwd);
-  const mergedExclude = [...(config.exclude ?? []), ...(opts.exclude ?? [])];
-  const diffFiles = await getDiffFiles(
-    opts.cwd,
-    opts.base,
-    opts.extensions,
-    undefined,
-    mergedExclude,
-  );
-  const coverage = await runCoverage(
-    {
-      base: opts.base,
-      cwd: opts.cwd,
-      extensions: opts.extensions,
-      runner: opts.runner,
-    },
-    diffFiles,
-  );
-  return { coverage, diffFiles };
-};
-
 const postReview = async (args: {
   cwd: string;
   kept: PlannedComment[];
@@ -354,9 +321,15 @@ export const runReview = async (
     owner,
     repo,
   });
-  const { coverage, diffFiles } = await runMeasurement(opts);
+  const { coverage, diffFiles, thresholdMet } = await runMeasure({
+    base: opts.base,
+    cwd: opts.cwd,
+    exclude: opts.exclude,
+    extensions: opts.extensions,
+    runner: opts.runner,
+    threshold: opts.threshold,
+  });
   const planned = buildPlannedComments(coverage, diffFiles);
-  const thresholdMet = computeThresholdMet(coverage, opts.threshold);
   const reviewBody = renderReviewBody(coverage, opts.threshold);
   const prInfo = { headSha: pr.headRefOid, number: pr.number, url: pr.url };
 

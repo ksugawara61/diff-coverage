@@ -4,11 +4,11 @@ import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { formatDiffFiles, runDiffFiles } from "./commands/diff/diff.js";
+import { runMeasure } from "./commands/measure/measure.js";
 import { formatReviewResult, runReview } from "./commands/review/review.js";
 import { detectRunner } from "./runner/detect.js";
-import { loadConfig } from "./shared/config.js";
-import { type FileDetail, runCoverage } from "./shared/coverage.js";
-import { getDiffFiles } from "./shared/diff.js";
+import type { FileDetail } from "./shared/coverage.js";
 import { formatResult } from "./shared/format.js";
 import { RunnerEnumSchema } from "./shared/schema.js";
 
@@ -25,41 +25,33 @@ const RunnerSchema = RunnerEnumSchema.optional()
 
 // ─── Coverage detail helpers ──────────────────────────────────────────────────
 
-function collectUncoveredStatements(fileData: FileDetail): number[] {
-  const lines: Set<number> = new Set();
-  for (const [id, count] of Object.entries(fileData.s ?? {})) {
-    if (count === 0) {
-      const loc = fileData.statementMap?.[id]?.start?.line;
-      if (loc) lines.add(loc);
-    }
-  }
-  return [...lines].sort((a, b) => a - b);
-}
+const collectUncoveredStatements = (fileData: FileDetail): number[] => {
+  const lines = Object.entries(fileData.s ?? {})
+    .filter(([, count]) => count === 0)
+    .map(([id]) => fileData.statementMap?.[id]?.start?.line)
+    .filter((line): line is number => typeof line === "number");
+  return [...new Set(lines)].sort((a, b) => a - b);
+};
 
-function collectUncoveredFunctions(fileData: FileDetail): string[] {
-  const result: string[] = [];
-  for (const [id, count] of Object.entries(fileData.f ?? {})) {
-    if (count === 0) {
-      const fn = fileData.fnMap?.[id];
-      if (fn) result.push(`${fn.name} (line ${fn.loc?.start?.line})`);
-    }
-  }
-  return result;
-}
+const collectUncoveredFunctions = (fileData: FileDetail): string[] =>
+  Object.entries(fileData.f ?? {})
+    .filter(([, count]) => count === 0)
+    .map(([id]) => fileData.fnMap?.[id])
+    .filter((fn): fn is NonNullable<typeof fn> => fn !== undefined)
+    .map((fn) => `${fn.name} (line ${fn.loc?.start?.line})`);
 
-function collectUncoveredBranches(fileData: FileDetail): number[] {
-  const lines: Set<number> = new Set();
-  for (const [id, counts] of Object.entries(fileData.b ?? {})) {
-    for (const [i, count] of counts.entries()) {
-      const loc =
+const collectUncoveredBranches = (fileData: FileDetail): number[] => {
+  const lines = Object.entries(fileData.b ?? {}).flatMap(([id, counts]) =>
+    counts
+      .map((count, i) =>
         count === 0
           ? fileData.branchMap?.[id]?.locations?.[i]?.start?.line
-          : undefined;
-      if (loc) lines.add(loc);
-    }
-  }
-  return [...lines].sort((a, b) => a - b);
-}
+          : undefined,
+      )
+      .filter((line): line is number => typeof line === "number"),
+  );
+  return [...new Set(lines)].sort((a, b) => a - b);
+};
 
 // ─── Tool 1: measure_diff_coverage ───────────────────────────────────────────
 
@@ -110,20 +102,18 @@ server.tool(
     exclude,
     threshold,
   }) => {
-    const absPath = resolve(cwd);
-
     try {
-      const config = await loadConfig(absPath);
-      const mergedExclude = [...(config.exclude ?? []), ...(exclude ?? [])];
-      const diffFiles = await getDiffFiles(
-        absPath,
+      const outcome = await runMeasure({
         base,
+        cwd: resolve(cwd),
+        exclude,
         extensions,
-        undefined,
-        mergedExclude,
-      );
+        runner,
+        testCommand,
+        threshold,
+      });
 
-      if (diffFiles.length === 0) {
+      if (outcome.diffFiles.length === 0) {
         return {
           content: [
             {
@@ -134,21 +124,12 @@ server.tool(
         };
       }
 
-      const result = await runCoverage(
-        { base, cwd: absPath, extensions, runner, testCommand },
-        diffFiles,
-      );
-
-      const formatted = formatResult(result, threshold);
-      const passed =
-        threshold === undefined || result.summary.lines.pct >= threshold;
-
       return {
         content: [
-          { text: formatted, type: "text" },
-          { text: JSON.stringify(result, null, 2), type: "text" },
+          { text: formatResult(outcome.coverage, threshold), type: "text" },
+          { text: JSON.stringify(outcome.coverage, null, 2), type: "text" },
         ],
-        isError: !passed,
+        isError: outcome.thresholdMet === false,
       };
     } catch (err) {
       return {
@@ -184,35 +165,16 @@ server.tool(
   },
   async ({ cwd, base, extensions, exclude }) => {
     try {
-      const absPath = resolve(cwd);
-      const config = await loadConfig(absPath);
-      const mergedExclude = [...(config.exclude ?? []), ...(exclude ?? [])];
-      const files = await getDiffFiles(
-        absPath,
+      const { files } = await runDiffFiles({
         base,
+        cwd: resolve(cwd),
+        exclude,
         extensions,
-        undefined,
-        mergedExclude,
-      );
-
-      if (files.length === 0) {
-        return {
-          content: [{ text: "No changed source files found.", type: "text" }],
-        };
-      }
-
-      const lines = files.map(
-        (f) =>
-          `${f.path}  (+${f.additions} additions, -${f.deletions} deletions)` +
-          (f.addedLines.length > 0
-            ? `\n  Added lines: ${f.addedLines.slice(0, 10).join(", ")}${f.addedLines.length > 10 ? " ..." : ""}`
-            : ""),
-      );
-
+      });
       return {
         content: [
           {
-            text: `Changed files (${files.length}):\n\n${lines.join("\n\n")}`,
+            text: formatDiffFiles(files, { showAddedLines: true }),
             type: "text",
           },
         ],

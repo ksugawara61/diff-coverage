@@ -5,7 +5,7 @@ import {
   GhNotAuthenticatedError,
   GhNotInstalledError,
 } from "../../shared/github.js";
-import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
+import { parseCsv, parseCsvOption } from "../../shared/options.js";
 import { formatReviewResult, NoPullRequestError, runReview } from "./review.js";
 import { ReviewCLIOptsSchema } from "./schema.js";
 
@@ -29,18 +29,14 @@ const handleReviewError = (err: unknown): never => {
 };
 
 const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
-  const cwd = resolve(opts.cwd);
-  const extensions = parseCsv(opts.ext);
-  const exclude = await resolveExcludePatterns(cwd, opts.exclude);
-
   try {
     console.error(`📝 Reviewing PR for current branch (base: ${opts.base})...`);
     const outcome = await runReview({
       base: opts.base,
-      cwd,
+      cwd: resolve(opts.cwd),
       dryRun: opts.dryRun,
-      exclude,
-      extensions,
+      exclude: parseCsvOption(opts.exclude),
+      extensions: parseCsv(opts.ext),
       pr: opts.pr,
       runner: opts.runner,
       threshold: opts.threshold,

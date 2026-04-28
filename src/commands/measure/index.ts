@@ -1,18 +1,19 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
 import type { z } from "zod";
-import { runCoverage } from "../../shared/coverage.js";
-import { getDiffFiles } from "../../shared/diff.js";
 import { formatResult } from "../../shared/format.js";
-import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
+import { parseCsv, parseCsvOption } from "../../shared/options.js";
 import { resolveRunner } from "../../shared/runner.js";
+import { formatDiffFiles } from "../diff/diff.js";
+import { measureWithDiffFiles, resolveMeasureDiffFiles } from "./measure.js";
 import { MeasureCLIOptsSchema } from "./schema.js";
 
 type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;
 
-const runMeasure = async (opts: MeasureCliOptions): Promise<void> => {
+const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
+  const exclude = parseCsvOption(opts.exclude);
   const runner = await resolveRunner(cwd, opts.runner);
 
   console.error(
@@ -20,14 +21,12 @@ const runMeasure = async (opts: MeasureCliOptions): Promise<void> => {
   );
 
   try {
-    const exclude = await resolveExcludePatterns(cwd, opts.exclude);
-    const diffFiles = await getDiffFiles(
+    const diffFiles = await resolveMeasureDiffFiles({
+      base: opts.base,
       cwd,
-      opts.base,
-      extensions,
-      undefined,
       exclude,
-    );
+      extensions,
+    });
 
     if (diffFiles.length === 0) {
       console.log("No changed source files found.");
@@ -39,34 +38,33 @@ const runMeasure = async (opts: MeasureCliOptions): Promise<void> => {
     );
 
     if (opts.diffOnly) {
-      console.log(diffFiles.map((f) => f.path).join("\n"));
+      console.log(formatDiffFiles(diffFiles));
       process.exit(0);
     }
 
     const runnerLabel = runner === "vitest" ? "Vitest" : "Jest";
     console.error(`🧪 Running ${runnerLabel}...\n`);
 
-    const result = await runCoverage(
+    const outcome = await measureWithDiffFiles(
       {
         base: opts.base,
         cwd,
+        exclude,
         extensions,
         runner,
         testCommand: opts.cmd,
+        threshold: opts.threshold,
       },
       diffFiles,
     );
 
     if (opts.json) {
-      console.log(JSON.stringify(result, null, 2));
+      console.log(JSON.stringify(outcome.coverage, null, 2));
     } else {
-      console.log(formatResult(result, opts.threshold));
+      console.log(formatResult(outcome.coverage, opts.threshold));
     }
 
-    if (
-      opts.threshold !== undefined &&
-      result.summary.lines.pct < opts.threshold
-    ) {
+    if (outcome.thresholdMet === false) {
       process.exit(1);
     }
   } catch (err) {
@@ -81,7 +79,7 @@ const measureAction = async (rawOpts: unknown): Promise<void> => {
     console.error(parsed.error.message);
     process.exit(1);
   }
-  await runMeasure(parsed.data);
+  await runMeasureCommand(parsed.data);
 };
 
 export const registerMeasureCommand = (program: Command): void => {
