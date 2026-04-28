@@ -1,14 +1,17 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import { GhNotAuthenticatedError, GhNotInstalledError } from "../../github.js";
+import type { RunnerType } from "../../runner/detect.js";
+import {
+  GhNotAuthenticatedError,
+  GhNotInstalledError,
+} from "../../shared/github.js";
+import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
 import {
   formatReviewResult,
   NoPullRequestError,
   type ReviewOptions,
   runReview,
-} from "../../review.js";
-import type { RunnerType } from "../../runner/detect.js";
-import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
+} from "./review.js";
 
 type ReviewCliOptions = {
   base: string;

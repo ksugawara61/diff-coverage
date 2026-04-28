@@ -1,11 +1,9 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import {
-  formatTypecheckResult,
-  getDiffFiles,
-  runTypecheck,
-} from "../../core.js";
+import { getDiffFiles } from "../../shared/diff.js";
 import { parseCsv } from "../../shared/options.js";
+import { formatTypecheckResult } from "./format.js";
+import { runTypecheck } from "./typecheck.js";
 
 type TypecheckCliOptions = {
   base: string;

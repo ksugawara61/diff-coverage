@@ -3,25 +3,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("execa", () => ({
   execa: vi.fn(),
 }));
-vi.mock("./core.js", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    getDiffFiles: vi.fn(),
-    loadConfig: vi.fn().mockResolvedValue({}),
-    runCoverage: vi.fn(),
-  };
-});
+vi.mock("../../shared/config.js", () => ({
+  loadConfig: vi.fn().mockResolvedValue({}),
+}));
+vi.mock("../../shared/coverage.js", () => ({
+  runCoverage: vi.fn(),
+}));
+vi.mock("../../shared/diff.js", () => ({
+  getDiffFiles: vi.fn(),
+}));
 
 import { execa } from "execa";
 import {
   type DiffCoverageResult,
-  type DiffFile,
   type FileCoverage,
-  getDiffFiles,
   runCoverage,
-} from "./core.js";
-import type { GitHubReviewComment } from "./github.js";
+} from "../../shared/coverage.js";
+import { type DiffFile, getDiffFiles } from "../../shared/diff.js";
+import type { GitHubReviewComment } from "../../shared/github.js";
 import {
   buildMarker,
   buildPlannedComments,

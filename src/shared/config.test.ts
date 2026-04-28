@@ -5,7 +5,7 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 import { readFile } from "node:fs/promises";
-import { globToRegex, loadConfig } from "./core.js";
+import { globToRegex, loadConfig } from "./config.js";
 
 const mockReadFile = vi.mocked(readFile);
 

@@ -5,7 +5,7 @@ vi.mock("execa", () => ({
 }));
 
 import { execa } from "execa";
-import { getDiffFiles } from "./core.js";
+import { getDiffFiles } from "./diff.js";
 
 const mockExeca = vi.mocked(execa);
 

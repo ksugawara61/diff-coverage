@@ -20,7 +20,7 @@
   "engines": {
     "node": ">=18"
   },
-  "main": "./dist/core.js",
+  "main": "./dist/cli.js",
   "name": "diff-coverage",
   "scripts": {
     "build": "tsc",

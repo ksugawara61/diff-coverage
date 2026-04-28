@@ -1,10 +1,11 @@
 import { execa } from "execa";
-import type { DiffFile, RunOptions } from "../core.js";
+import type { RunOptions } from "../shared/coverage.js";
+import type { DiffFile } from "../shared/diff.js";
 
-export async function runJest(
+export const runJest = async (
   options: RunOptions,
   diffFiles: DiffFile[],
-): Promise<void> {
+): Promise<void> => {
   const { cwd, testCommand } = options;
   const filePaths = diffFiles.map((f) => f.path);
 
@@ -26,7 +27,7 @@ export async function runJest(
     env: { ...process.env, CI: "true" },
     reject: false,
   });
-}
+};
 
 // Jest outputs to coverage/ by default
 export const JEST_COVERAGE_DIR = "coverage";

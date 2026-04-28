@@ -4,15 +4,12 @@ import { resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import {
-  type FileDetail,
-  formatResult,
-  getDiffFiles,
-  loadConfig,
-  runCoverage,
-} from "./core.js";
-import { formatReviewResult, runReview } from "./review.js";
+import { formatReviewResult, runReview } from "./commands/review/review.js";
 import { detectRunner } from "./runner/detect.js";
+import { loadConfig } from "./shared/config.js";
+import { type FileDetail, runCoverage } from "./shared/coverage.js";
+import { getDiffFiles } from "./shared/diff.js";
+import { formatResult } from "./shared/format.js";
 
 const server = new McpServer({
   name: "diff-coverage",
