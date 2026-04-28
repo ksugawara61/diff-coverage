@@ -19,7 +19,7 @@ import {
 } from "../../shared/github.js";
 import { runMeasure } from "../measure/measure.js";
 
-export type ReviewOptions = {
+type ReviewOptions = {
   base?: string;
   cwd: string;
   dryRun?: boolean;
@@ -30,7 +30,7 @@ export type ReviewOptions = {
   threshold?: number;
 };
 
-export type Range = { end: number; start: number };
+type Range = { end: number; start: number };
 
 export type PlannedComment = {
   body: string;
@@ -241,7 +241,7 @@ export const formatReviewResult = (outcome: ReviewOutcome): string => {
 
 // ─── Git context ─────────────────────────────────────────────────────────────
 
-export const detectGitContext = async (
+const detectGitContext = async (
   cwd: string,
 ): Promise<{ branch: string; remoteUrl: string }> => {
   const branchResult = await execa(

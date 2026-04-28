@@ -84,5 +84,3 @@ async function normalizeVitestCoverage(cwd: string): Promise<void> {
   await normalizeCoverageFile(finalPath, cwd);
   await normalizeCoverageFile(summaryPath, cwd, (key) => key === "total");
 }
-
-export const VITEST_COVERAGE_DIR = "coverage";

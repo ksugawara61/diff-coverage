@@ -6,7 +6,7 @@ import {
 import { type DiffFile, getDiffFiles } from "../../shared/diff.js";
 import { mergeExcludePatterns } from "../../shared/options.js";
 
-export type MeasureOptions = {
+type MeasureOptions = {
   base?: string;
   cwd: string;
   exclude?: string[];
