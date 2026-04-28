@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import { getDiffFiles } from "../../core.js";
+import { getDiffFiles } from "../../shared/diff.js";
 import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
 
 type DiffCliOptions = {

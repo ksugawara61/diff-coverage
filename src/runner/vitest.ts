@@ -1,7 +1,8 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { execa } from "execa";
-import type { DiffFile, RunOptions } from "../core.js";
+import type { RunOptions } from "../shared/coverage.js";
+import type { DiffFile } from "../shared/diff.js";
 
 // Vitest outputs coverage to coverage/ by default, same as Jest.
 // But the include pattern syntax differs: Vitest uses glob patterns passed via

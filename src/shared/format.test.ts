@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type {
-  DiffCoverageResult,
-  FileCoverage,
-  TypecheckResult,
-} from "./core.js";
-import { formatResult, formatTypecheckResult } from "./core.js";
+import type { DiffCoverageResult, FileCoverage } from "./coverage.js";
+import { formatResult } from "./format.js";
 
-function makeFileCoverage(
+const makeFileCoverage = (
   path: string,
   pct: number,
   uncoveredLines: number[] = [],
-): FileCoverage {
+): FileCoverage => {
   const n = 10;
   const covered = Math.round((pct / 100) * n);
   return {
@@ -21,33 +17,31 @@ function makeFileCoverage(
     statements: { covered, pct, total: n },
     uncoveredLines,
   };
-}
+};
 
-function makeResult(
+const makeResult = (
   overrides?: Partial<DiffCoverageResult>,
-): DiffCoverageResult {
-  return {
-    files: [],
-    runner: "jest",
-    summary: {
-      branches: { covered: 0, pct: 0, total: 0 },
-      coveredFiles: 0,
-      functions: { covered: 0, pct: 0, total: 0 },
-      lines: { covered: 0, pct: 0, total: 0 },
-      statements: { covered: 0, pct: 0, total: 0 },
-      totalFiles: 0,
-    },
-    timestamp: "2024-01-01T00:00:00.000Z",
-    uncoveredFiles: [],
-    ...overrides,
-  };
-}
+): DiffCoverageResult => ({
+  files: [],
+  runner: "jest",
+  summary: {
+    branches: { covered: 0, pct: 0, total: 0 },
+    coveredFiles: 0,
+    functions: { covered: 0, pct: 0, total: 0 },
+    lines: { covered: 0, pct: 0, total: 0 },
+    statements: { covered: 0, pct: 0, total: 0 },
+    totalFiles: 0,
+  },
+  timestamp: "2024-01-01T00:00:00.000Z",
+  uncoveredFiles: [],
+  ...overrides,
+});
 
-function resultWithFile(
+const resultWithFile = (
   path: string,
   pct: number,
   uncoveredLines: number[] = [],
-) {
+) => {
   const file = makeFileCoverage(path, pct, uncoveredLines);
   return makeResult({
     files: [file],
@@ -60,7 +54,7 @@ function resultWithFile(
       totalFiles: 1,
     },
   });
-}
+};
 
 describe("formatResult", () => {
   it("shows no-data message when files is empty", () => {
@@ -125,94 +119,5 @@ describe("formatResult", () => {
     expect(out).toContain("Statements:");
     expect(out).toContain("Functions:");
     expect(out).toContain("Branches:");
-  });
-});
-
-describe("formatTypecheckResult", () => {
-  function makeTypecheckResult(
-    overrides?: Partial<TypecheckResult>,
-  ): TypecheckResult {
-    return {
-      diffFiles: [],
-      files: [],
-      passed: true,
-      timestamp: "2024-01-01T00:00:00.000Z",
-      totalErrors: 0,
-      ...overrides,
-    };
-  }
-
-  function passingTypecheckResult(): TypecheckResult {
-    return makeTypecheckResult({
-      diffFiles: ["src/foo.ts"],
-      files: [{ errors: [], path: "src/foo.ts" }],
-      passed: true,
-      totalErrors: 0,
-    });
-  }
-
-  function failingTypecheckResult(): TypecheckResult {
-    return makeTypecheckResult({
-      diffFiles: ["src/foo.ts"],
-      files: [
-        {
-          errors: [
-            {
-              code: "TS2322",
-              column: 5,
-              file: "src/foo.ts",
-              line: 10,
-              message: "Type 'string' is not assignable to type 'number'.",
-            },
-          ],
-          path: "src/foo.ts",
-        },
-      ],
-      passed: false,
-      totalErrors: 1,
-    });
-  }
-
-  it("shows no-files message when files list is empty", () => {
-    const out = formatTypecheckResult(makeTypecheckResult());
-    expect(out).toContain("No changed TypeScript files found");
-  });
-
-  describe("with a passing result", () => {
-    it("shows file count and error count", () => {
-      const out = formatTypecheckResult(passingTypecheckResult());
-      expect(out).toContain("Files checked: 1");
-      expect(out).toContain("Total errors: 0");
-    });
-
-    it("shows PASS status", () => {
-      expect(formatTypecheckResult(passingTypecheckResult())).toContain(
-        "✅ PASS",
-      );
-    });
-
-    it("does not show error section", () => {
-      expect(formatTypecheckResult(passingTypecheckResult())).not.toContain(
-        "Errors by File",
-      );
-    });
-  });
-
-  describe("with a failing result", () => {
-    it("shows FAIL status", () => {
-      expect(formatTypecheckResult(failingTypecheckResult())).toContain(
-        "❌ FAIL",
-      );
-    });
-
-    it.each([
-      ["TS2322"],
-      ["10:5"],
-      ["src/foo.ts"],
-    ])("shows error detail %s", (fragment) => {
-      expect(formatTypecheckResult(failingTypecheckResult())).toContain(
-        fragment,
-      );
-    });
   });
 });

@@ -1,14 +1,13 @@
 import { createHash } from "node:crypto";
 import { execa } from "execa";
+import { loadConfig } from "../../shared/config.js";
 import {
   type DiffCoverageResult,
-  type DiffFile,
   type FileCoverage,
-  getDiffFiles,
-  loadConfig,
   type RunOptions,
   runCoverage,
-} from "./core.js";
+} from "../../shared/coverage.js";
+import { type DiffFile, getDiffFiles } from "../../shared/diff.js";
 import {
   createReview,
   ensureGhAuthenticated,
@@ -19,7 +18,7 @@ import {
   listReviewComments,
   parseRepoSlug,
   type ReviewCommentInput,
-} from "./github.js";
+} from "../../shared/github.js";
 
 export type ReviewOptions = {
   base?: string;

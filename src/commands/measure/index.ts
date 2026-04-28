@@ -1,7 +1,9 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import { formatResult, getDiffFiles, runCoverage } from "../../core.js";
 import type { RunnerType } from "../../runner/detect.js";
+import { runCoverage } from "../../shared/coverage.js";
+import { getDiffFiles } from "../../shared/diff.js";
+import { formatResult } from "../../shared/format.js";
 import { parseCsv, resolveExcludePatterns } from "../../shared/options.js";
 import { resolveRunner } from "../../shared/runner.js";
 

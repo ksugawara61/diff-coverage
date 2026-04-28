@@ -1,4 +1,4 @@
-import { loadConfig } from "../core.js";
+import { loadConfig } from "./config.js";
 
 export const parseCsv = (value: string): string[] =>
   value

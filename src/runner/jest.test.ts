@@ -5,7 +5,8 @@ vi.mock("execa", () => ({
 }));
 
 import { execa } from "execa";
-import type { DiffFile, RunOptions } from "../core.js";
+import type { RunOptions } from "../shared/coverage.js";
+import type { DiffFile } from "../shared/diff.js";
 import { runJest } from "./jest.js";
 
 const mockExeca = vi.mocked(execa);
