@@ -1,0 +1,424 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../../repositories/git.js", () => ({
+  getCurrentBranch: vi.fn(),
+  getRemoteOriginUrl: vi.fn(),
+}));
+vi.mock("../../repositories/github.js", () => ({
+  createReview: vi.fn(),
+  ensureGhAuthenticated: vi.fn(),
+  findPullRequestByBranch: vi.fn(),
+  getPullRequest: vi.fn(),
+  listReviewComments: vi.fn().mockResolvedValue([]),
+  parseRepoSlug: vi.fn().mockReturnValue({ owner: "owner", repo: "repo" }),
+}));
+vi.mock("../measure/index.js", () => ({
+  runMeasure: vi.fn(),
+}));
+
+import {
+  type DiffFile,
+  getCurrentBranch,
+  getRemoteOriginUrl,
+} from "../../repositories/git.js";
+import {
+  createReview,
+  ensureGhAuthenticated,
+  findPullRequestByBranch,
+  type GitHubReviewComment,
+  listReviewComments,
+} from "../../repositories/github.js";
+import type { DiffCoverageResult, FileCoverage } from "../measure/coverage.js";
+import { runMeasure } from "../measure/index.js";
+import {
+  buildMarker,
+  buildPlannedComments,
+  filterAlreadyPosted,
+  formatReviewResult,
+  groupUncoveredRanges,
+  NoPullRequestError,
+  type PlannedComment,
+  type ReviewOutcome,
+  renderCommentBody,
+  renderReviewBody,
+  runReview,
+} from "./index.js";
+
+const mockGetCurrentBranch = vi.mocked(getCurrentBranch);
+const mockGetRemoteOriginUrl = vi.mocked(getRemoteOriginUrl);
+const mockEnsureGhAuthenticated = vi.mocked(ensureGhAuthenticated);
+const mockFindPullRequestByBranch = vi.mocked(findPullRequestByBranch);
+const mockCreateReview = vi.mocked(createReview);
+const mockListReviewComments = vi.mocked(listReviewComments);
+const mockRunMeasure = vi.mocked(runMeasure);
+
+const fileCoverage = (overrides: Partial<FileCoverage> = {}): FileCoverage => ({
+  branches: { covered: 0, pct: 0, total: 0 },
+  functions: { covered: 0, pct: 0, total: 0 },
+  lines: { covered: 0, pct: 0, total: 0 },
+  path: "src/foo.ts",
+  statements: { covered: 0, pct: 0, total: 0 },
+  uncoveredLines: [],
+  ...overrides,
+});
+
+const coverageResult = (
+  overrides: Partial<DiffCoverageResult> = {},
+): DiffCoverageResult => ({
+  files: [],
+  runner: "jest",
+  summary: {
+    branches: { covered: 0, pct: 0, total: 0 },
+    coveredFiles: 0,
+    functions: { covered: 0, pct: 0, total: 0 },
+    lines: { covered: 80, pct: 80, total: 100 },
+    statements: { covered: 80, pct: 80, total: 100 },
+    totalFiles: 1,
+  },
+  timestamp: "2026-04-28T00:00:00.000Z",
+  uncoveredFiles: [],
+  ...overrides,
+});
+
+const diffFile = (overrides: Partial<DiffFile> = {}): DiffFile => ({
+  addedLines: [],
+  additions: 0,
+  deletions: 0,
+  path: "src/foo.ts",
+  ...overrides,
+});
+
+const makePr = (overrides = {}) => ({
+  baseRefName: "main",
+  headRefName: "feature",
+  headRefOid: "deadbeef",
+  number: 42,
+  state: "OPEN" as const,
+  url: "https://github.com/owner/repo/pull/42",
+  ...overrides,
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockEnsureGhAuthenticated.mockResolvedValue(undefined);
+  mockGetCurrentBranch.mockResolvedValue("feature");
+  mockGetRemoteOriginUrl.mockResolvedValue("git@github.com:owner/repo.git");
+  mockFindPullRequestByBranch.mockResolvedValue(makePr());
+  mockListReviewComments.mockResolvedValue([]);
+  mockCreateReview.mockResolvedValue({
+    html_url: "https://x/review/1",
+    id: 999,
+  });
+});
+
+describe("groupUncoveredRanges", () => {
+  it.each([
+    {
+      added: [1, 2, 3, 4, 5],
+      expected: [{ end: 3, start: 1 }],
+      name: "merges consecutive uncovered lines",
+      uncovered: [1, 2, 3],
+    },
+    {
+      added: [1, 2, 3, 4, 5],
+      expected: [
+        { end: 1, start: 1 },
+        { end: 3, start: 3 },
+        { end: 5, start: 5 },
+      ],
+      name: "splits non-consecutive uncovered lines",
+      uncovered: [1, 3, 5],
+    },
+    {
+      added: [5, 6, 7],
+      expected: [],
+      name: "returns empty when no uncovered lines",
+      uncovered: [],
+    },
+  ])("$name", ({ uncovered, added, expected }) => {
+    expect(groupUncoveredRanges(uncovered, added)).toEqual(expected);
+  });
+
+  it("filters out uncovered lines not in addedLines", () => {
+    expect(groupUncoveredRanges([1, 2, 3], [2])).toEqual([
+      { end: 2, start: 2 },
+    ]);
+  });
+});
+
+describe("buildMarker", () => {
+  it("is deterministic for the same input", () => {
+    expect(buildMarker("src/foo.ts", 10, 20)).toBe(
+      buildMarker("src/foo.ts", 10, 20),
+    );
+  });
+
+  it("differs when path or range changes", () => {
+    const a = buildMarker("src/foo.ts", 10, 20);
+    const b = buildMarker("src/foo.ts", 10, 21);
+    const c = buildMarker("src/bar.ts", 10, 20);
+    expect(a).not.toBe(b);
+    expect(a).not.toBe(c);
+  });
+});
+
+describe("renderCommentBody", () => {
+  it("renders single-line body", () => {
+    const body = renderCommentBody({
+      endLine: 42,
+      marker: "<!-- mark -->",
+      path: "src/foo.ts",
+      startLine: 42,
+    });
+    expect(body).toContain("(line 42)");
+    expect(body).toContain("<!-- mark -->");
+  });
+
+  it("renders multi-line body with line count", () => {
+    const body = renderCommentBody({
+      endLine: 47,
+      marker: "<!-- mark -->",
+      path: "src/foo.ts",
+      startLine: 42,
+    });
+    expect(body).toContain("lines 42–47");
+    expect(body).toContain("These 6 added lines");
+  });
+});
+
+describe("buildPlannedComments", () => {
+  it("emits one comment per uncovered range and intersects with addedLines", () => {
+    const result = coverageResult({
+      files: [
+        fileCoverage({
+          path: "src/foo.ts",
+          uncoveredLines: [10, 11, 12, 50],
+        }),
+      ],
+    });
+    const planned = buildPlannedComments(result, [
+      diffFile({ addedLines: [10, 11, 12, 50] }),
+    ]);
+
+    expect(planned).toHaveLength(2);
+    expect(planned[0]).toMatchObject({
+      endLine: 12,
+      path: "src/foo.ts",
+      startLine: 10,
+    });
+    expect(planned[1]).toMatchObject({
+      endLine: 50,
+      path: "src/foo.ts",
+      startLine: 50,
+    });
+  });
+});
+
+describe("filterAlreadyPosted", () => {
+  const planned: PlannedComment[] = [
+    {
+      body: "ignored",
+      endLine: 12,
+      marker: "<!-- diff-coverage:auto:abc1234 -->",
+      path: "src/a.ts",
+      startLine: 10,
+    },
+    {
+      body: "ignored",
+      endLine: 5,
+      marker: "<!-- diff-coverage:auto:def5678 -->",
+      path: "src/b.ts",
+      startLine: 5,
+    },
+  ];
+
+  const existingComment = (body: string): GitHubReviewComment => ({
+    body,
+    id: 1,
+    line: null,
+    path: "src/a.ts",
+    start_line: null,
+  });
+
+  it("skips planned comments whose marker already appears in existing comments", () => {
+    const { kept, skipped } = filterAlreadyPosted(planned, [
+      existingComment(
+        "Earlier text\n<!-- diff-coverage:auto:abc1234 -->\nmore",
+      ),
+    ]);
+    expect(skipped).toBe(1);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].marker).toContain("def5678");
+  });
+
+  it("keeps everything when no markers match", () => {
+    const { kept, skipped } = filterAlreadyPosted(planned, [
+      existingComment("unrelated comment"),
+    ]);
+    expect(skipped).toBe(0);
+    expect(kept).toHaveLength(2);
+  });
+});
+
+describe("renderReviewBody", () => {
+  it("includes summary and threshold pass/fail line", () => {
+    const body = renderReviewBody(coverageResult(), 90);
+    expect(body).toContain("Diff coverage report");
+    expect(body).toContain("Threshold: 90%");
+    expect(body).toContain("⚠️ below threshold");
+    expect(body).toContain("<!-- diff-coverage:auto:summary -->");
+  });
+
+  it("omits threshold line when threshold is undefined", () => {
+    const body = renderReviewBody(coverageResult());
+    expect(body).not.toContain("Threshold:");
+  });
+});
+
+describe("formatReviewResult", () => {
+  const baseOutcome = (
+    overrides: Partial<ReviewOutcome> = {},
+  ): ReviewOutcome => ({
+    coverage: coverageResult(),
+    dryRun: false,
+    planned: [],
+    posted: [],
+    pr: { headSha: "sha", number: 1, url: "https://x/pr/1" },
+    skippedExisting: 0,
+    thresholdMet: null,
+    ...overrides,
+  });
+
+  it.each([
+    {
+      expected: "Threshold: ✅ PASS",
+      name: "threshold met",
+      thresholdMet: true,
+    },
+    {
+      expected: "Threshold: ❌ FAIL",
+      name: "threshold not met",
+      thresholdMet: false,
+    },
+  ])("renders $name", ({ thresholdMet, expected }) => {
+    expect(formatReviewResult(baseOutcome({ thresholdMet }))).toContain(
+      expected,
+    );
+  });
+
+  it("renders dry-run mode when dryRun is true", () => {
+    expect(formatReviewResult(baseOutcome({ dryRun: true }))).toContain(
+      "dry-run",
+    );
+  });
+
+  it("includes posted review URL when present", () => {
+    const out = formatReviewResult(
+      baseOutcome({ postedReviewUrl: "https://x/review/9" }),
+    );
+    expect(out).toContain("Posted review: https://x/review/9");
+  });
+});
+
+describe("runReview", () => {
+  const mountSuccessfulPipeline = (overrides?: {
+    addedLines?: number[];
+    uncoveredLines?: number[];
+  }) => {
+    const addedLines = overrides?.addedLines ?? [10, 11, 12];
+    const uncoveredLines = overrides?.uncoveredLines ?? [10, 11, 12];
+
+    mockRunMeasure.mockResolvedValueOnce({
+      coverage: coverageResult({
+        files: [fileCoverage({ path: "src/foo.ts", uncoveredLines })],
+      }),
+      diffFiles: [diffFile({ addedLines, path: "src/foo.ts" })],
+      thresholdMet: null,
+    });
+  };
+
+  it("posts a review with planned comments on the happy path", async () => {
+    mountSuccessfulPipeline();
+
+    const outcome = await runReview({ cwd: "/repo" });
+
+    expect(outcome.posted).toHaveLength(1);
+    expect(outcome.skippedExisting).toBe(0);
+    expect(outcome.postedReviewUrl).toBe("https://x/review/1");
+    expect(outcome.pr.number).toBe(42);
+
+    expect(mockCreateReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        comments: expect.arrayContaining([
+          expect.objectContaining({
+            line: 12,
+            path: "src/foo.ts",
+            start_line: 10,
+          }),
+        ]),
+        commitId: "deadbeef",
+        owner: "owner",
+        pullNumber: 42,
+        repo: "repo",
+      }),
+    );
+  });
+
+  it("throws NoPullRequestError when no PR is found", async () => {
+    mockFindPullRequestByBranch.mockResolvedValueOnce(null);
+
+    await expect(runReview({ cwd: "/repo" })).rejects.toBeInstanceOf(
+      NoPullRequestError,
+    );
+  });
+
+  it("does not call createReview in dryRun mode", async () => {
+    mountSuccessfulPipeline();
+
+    const outcome = await runReview({ cwd: "/repo", dryRun: true });
+
+    expect(outcome.dryRun).toBe(true);
+    expect(outcome.posted).toEqual([]);
+    expect(outcome.planned).toHaveLength(1);
+    expect(mockCreateReview).not.toHaveBeenCalled();
+  });
+
+  it("skips comments whose marker already exists on the PR", async () => {
+    mountSuccessfulPipeline();
+    const planned = buildPlannedComments(
+      coverageResult({
+        files: [
+          fileCoverage({
+            path: "src/foo.ts",
+            uncoveredLines: [10, 11, 12],
+          }),
+        ],
+      }),
+      [diffFile({ addedLines: [10, 11, 12], path: "src/foo.ts" })],
+    );
+    mockListReviewComments.mockResolvedValueOnce([
+      {
+        body: `existing ${planned[0].marker}`,
+        id: 1,
+        line: 12,
+        path: "src/foo.ts",
+        start_line: 10,
+      },
+    ]);
+
+    const outcome = await runReview({ cwd: "/repo" });
+    expect(outcome.skippedExisting).toBe(1);
+    expect(outcome.posted).toHaveLength(0);
+  });
+
+  it("computes thresholdMet from runMeasure result", async () => {
+    mockRunMeasure.mockResolvedValueOnce({
+      coverage: coverageResult(),
+      diffFiles: [diffFile()],
+      thresholdMet: false,
+    });
+
+    const outcome = await runReview({ cwd: "/repo", threshold: 90 });
+    expect(outcome.thresholdMet).toBe(false);
+  });
+});
