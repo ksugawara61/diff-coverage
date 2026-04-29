@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/mcp.ts"],
+  "entry": ["src/presentations/mcp.ts"],
   "project": ["src/**/*.ts"],
   "ignoreBinaries": ["gh"]
 }

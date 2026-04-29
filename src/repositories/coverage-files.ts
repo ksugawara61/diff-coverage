@@ -12,7 +12,7 @@ export type FileDetail = {
 };
 
 type CoverageMetric = { covered: number; pct: number; total: number };
-export type CoverageSummaryEntry = {
+type CoverageSummaryEntry = {
   branches: CoverageMetric;
   functions: CoverageMetric;
   lines: CoverageMetric;

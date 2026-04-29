@@ -5,7 +5,7 @@ import { globToRegex } from "../shared/glob.js";
 import type { DiffCoverageResult, RunOptions } from "./coverage.js";
 import { runCoverage } from "./runner-orchestrator.js";
 
-export type MeasureOptions = {
+type MeasureOptions = {
   base?: string;
   cwd: string;
   exclude?: string[];

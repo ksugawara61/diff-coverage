@@ -9,5 +9,4 @@ export const resolveRunner = async (
 ): Promise<RunnerType> =>
   runner === "auto" ? await detectRunner(cwd) : runner;
 
-export type { RunnerType };
 export { detectRunner };
