@@ -1,6 +1,6 @@
 {
   "bin": {
-    "diff-coverage": "./dist/cli.js"
+    "diff-coverage": "./dist/presentations/cli.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -21,7 +21,7 @@
   "engines": {
     "node": ">=18"
   },
-  "main": "./dist/cli.js",
+  "main": "./dist/presentations/cli.js",
   "name": "diff-coverage",
   "scripts": {
     "build": "tsc",
@@ -31,9 +31,9 @@
     "fmt": "biome check --write .",
     "knip": "knip",
     "lint": "biome lint .",
-    "mcp": "node dist/mcp.js",
+    "mcp": "node dist/presentations/mcp.js",
     "prepare": "lefthook install",
-    "start": "node dist/cli.js",
+    "start": "node dist/presentations/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
