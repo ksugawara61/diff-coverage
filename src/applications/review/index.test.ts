@@ -16,8 +16,18 @@ vi.mock("../../repositories/github.js", () => ({
   updateReview: vi.fn(),
   updateReviewComment: vi.fn(),
 }));
-vi.mock("../measure/index.js", () => ({
-  runMeasure: vi.fn(),
+vi.mock("../measure/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../measure/index.js")>();
+  return {
+    ...actual,
+    measureMonorepo: vi.fn(),
+    measureWithDiffFiles: vi.fn(),
+    resolveMeasureDiffFiles: vi.fn(),
+  };
+});
+vi.mock("../../repositories/monorepo.js", () => ({
+  groupDiffFilesByPackage: vi.fn(),
+  remapDiffFilePaths: vi.fn(),
 }));
 
 import {
@@ -36,8 +46,17 @@ import {
   updateReview,
   updateReviewComment,
 } from "../../repositories/github.js";
+import {
+  groupDiffFilesByPackage,
+  remapDiffFilePaths,
+} from "../../repositories/monorepo.js";
 import type { DiffCoverageResult, FileCoverage } from "../measure/coverage.js";
-import { runMeasure } from "../measure/index.js";
+import {
+  type MeasureOutcome,
+  measureMonorepo,
+  measureWithDiffFiles,
+  resolveMeasureDiffFiles,
+} from "../measure/index.js";
 import {
   buildMarker,
   buildPlannedComments,
@@ -62,7 +81,11 @@ const mockListPullRequestReviews = vi.mocked(listPullRequestReviews);
 const mockListReviewComments = vi.mocked(listReviewComments);
 const mockUpdateReview = vi.mocked(updateReview);
 const mockUpdateReviewComment = vi.mocked(updateReviewComment);
-const mockRunMeasure = vi.mocked(runMeasure);
+const mockResolveMeasureDiffFiles = vi.mocked(resolveMeasureDiffFiles);
+const mockGroupDiffFilesByPackage = vi.mocked(groupDiffFilesByPackage);
+const mockMeasureWithDiffFiles = vi.mocked(measureWithDiffFiles);
+const mockMeasureMonorepo = vi.mocked(measureMonorepo);
+const mockRemapDiffFilePaths = vi.mocked(remapDiffFilePaths);
 
 const fileCoverage = (overrides: Partial<FileCoverage> = {}): FileCoverage => ({
   branches: { covered: 0, pct: 0, total: 0 },
@@ -385,12 +408,17 @@ describe("runReview", () => {
   }) => {
     const addedLines = overrides?.addedLines ?? [10, 11, 12];
     const uncoveredLines = overrides?.uncoveredLines ?? [10, 11, 12];
-
-    mockRunMeasure.mockResolvedValueOnce({
-      coverage: coverageResult({
-        files: [fileCoverage({ path: "src/foo.ts", uncoveredLines })],
-      }),
-      diffFiles: [diffFile({ addedLines, path: "src/foo.ts" })],
+    const files = [diffFile({ addedLines, path: "src/foo.ts" })];
+    const cov = coverageResult({
+      files: [fileCoverage({ path: "src/foo.ts", uncoveredLines })],
+    });
+    mockResolveMeasureDiffFiles.mockResolvedValueOnce(files);
+    mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+      new Map([["/repo", files]]),
+    );
+    mockMeasureWithDiffFiles.mockResolvedValueOnce({
+      coverage: cov,
+      diffFiles: files,
       thresholdMet: null,
     });
   };
@@ -521,14 +549,290 @@ describe("runReview", () => {
     expect(outcome.postedReviewUrl).toBe("https://x/review/1");
   });
 
-  it("computes thresholdMet from runMeasure result", async () => {
-    mockRunMeasure.mockResolvedValueOnce({
+  it("computes thresholdMet from measureWithDiffFiles result", async () => {
+    const files = [diffFile()];
+    mockResolveMeasureDiffFiles.mockResolvedValueOnce(files);
+    mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+      new Map([["/repo", files]]),
+    );
+    mockMeasureWithDiffFiles.mockResolvedValueOnce({
       coverage: coverageResult(),
-      diffFiles: [diffFile()],
+      diffFiles: files,
       thresholdMet: false,
     });
 
     const outcome = await runReview({ cwd: "/repo", threshold: 90 });
     expect(outcome.thresholdMet).toBe(false);
+  });
+
+  describe("single package in subdirectory", () => {
+    it("remaps diff file paths and uses pkgCwd when the single package is not the root", async () => {
+      const rootFile = diffFile({
+        path: "packages/app/src/foo.ts",
+        repoPath: "packages/app/src/foo.ts",
+      });
+      const remapped = diffFile({
+        path: "src/foo.ts",
+        repoPath: "packages/app/src/foo.ts",
+      });
+      const cov = coverageResult({
+        files: [fileCoverage({ path: "src/foo.ts", uncoveredLines: [] })],
+      });
+
+      mockResolveMeasureDiffFiles.mockResolvedValueOnce([rootFile]);
+      mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+        new Map([["/repo/packages/app", [rootFile]]]),
+      );
+      mockRemapDiffFilePaths.mockReturnValueOnce([remapped]);
+      mockMeasureWithDiffFiles.mockResolvedValueOnce({
+        coverage: cov,
+        diffFiles: [remapped],
+        thresholdMet: null,
+      });
+
+      await runReview({ cwd: "/repo", dryRun: true });
+
+      expect(mockRemapDiffFilePaths).toHaveBeenCalledWith(
+        [rootFile],
+        "/repo",
+        "/repo/packages/app",
+      );
+      expect(mockMeasureWithDiffFiles).toHaveBeenCalledWith(
+        expect.objectContaining({ cwd: "/repo/packages/app" }),
+        [remapped],
+      );
+    });
+  });
+
+  describe("monorepo mode", () => {
+    const makePkgOutcome = (
+      pkgFiles: DiffFile[],
+      covOverrides: Partial<DiffCoverageResult> = {},
+    ): MeasureOutcome => ({
+      coverage: coverageResult(covOverrides),
+      diffFiles: pkgFiles,
+      thresholdMet: null,
+    });
+
+    it("calls measureMonorepo and skips measureWithDiffFiles when packageMap has multiple entries", async () => {
+      const filesA = [
+        diffFile({ path: "src/a.ts", repoPath: "packages/a/src/a.ts" }),
+      ];
+      const filesB = [
+        diffFile({ path: "src/b.ts", repoPath: "packages/b/src/b.ts" }),
+      ];
+
+      mockResolveMeasureDiffFiles.mockResolvedValueOnce([...filesA, ...filesB]);
+      mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+        new Map([
+          ["/repo/packages/a", filesA],
+          ["/repo/packages/b", filesB],
+        ]),
+      );
+      mockMeasureMonorepo.mockResolvedValueOnce({
+        packages: [
+          {
+            cwd: "/repo/packages/a",
+            outcome: makePkgOutcome(filesA),
+            relCwd: "packages/a",
+          },
+          {
+            cwd: "/repo/packages/b",
+            outcome: makePkgOutcome(filesB),
+            relCwd: "packages/b",
+          },
+        ],
+      });
+
+      await runReview({ cwd: "/repo", dryRun: true });
+
+      expect(mockMeasureMonorepo).toHaveBeenCalledOnce();
+      expect(mockMeasureWithDiffFiles).not.toHaveBeenCalled();
+    });
+
+    it("builds planned comments per package to preserve correct repoPath", async () => {
+      const fileA = diffFile({
+        addedLines: [5],
+        path: "src/index.ts",
+        repoPath: "packages/a/src/index.ts",
+      });
+      const fileB = diffFile({
+        addedLines: [5],
+        path: "src/index.ts",
+        repoPath: "packages/b/src/index.ts",
+      });
+      const covA = coverageResult({
+        files: [fileCoverage({ path: "src/index.ts", uncoveredLines: [5] })],
+      });
+      const covB = coverageResult({
+        files: [fileCoverage({ path: "src/index.ts", uncoveredLines: [5] })],
+      });
+
+      mockResolveMeasureDiffFiles.mockResolvedValueOnce([fileA, fileB]);
+      mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+        new Map([
+          ["/repo/packages/a", [fileA]],
+          ["/repo/packages/b", [fileB]],
+        ]),
+      );
+      mockMeasureMonorepo.mockResolvedValueOnce({
+        packages: [
+          {
+            cwd: "/repo/packages/a",
+            outcome: { coverage: covA, diffFiles: [fileA], thresholdMet: null },
+            relCwd: "packages/a",
+          },
+          {
+            cwd: "/repo/packages/b",
+            outcome: { coverage: covB, diffFiles: [fileB], thresholdMet: null },
+            relCwd: "packages/b",
+          },
+        ],
+      });
+
+      const outcome = await runReview({ cwd: "/repo", dryRun: true });
+
+      expect(outcome.planned).toHaveLength(2);
+      expect(outcome.planned[0].path).toBe("packages/a/src/index.ts");
+      expect(outcome.planned[1].path).toBe("packages/b/src/index.ts");
+    });
+
+    it.each([
+      {
+        expectedCovered: 0,
+        expectedPct: 0,
+        expectedTotal: 0,
+        name: "returns pct=0 when all line totals are zero",
+        pkgLines: [
+          { covered: 0, total: 0 },
+          { covered: 0, total: 0 },
+        ],
+      },
+      {
+        expectedCovered: 110,
+        expectedPct: Math.round((110 / 150) * 10000) / 100,
+        expectedTotal: 150,
+        name: "sums covered and total across packages and recomputes pct",
+        pkgLines: [
+          { covered: 80, total: 100 },
+          { covered: 30, total: 50 },
+        ],
+      },
+    ])("mergeCoverageResults: $name", async ({
+      pkgLines,
+      expectedPct,
+      expectedCovered,
+      expectedTotal,
+    }) => {
+      const makeMonoPkgOutcome = (lines: {
+        covered: number;
+        total: number;
+      }): MeasureOutcome => ({
+        coverage: coverageResult({
+          summary: {
+            branches: { covered: 0, pct: 0, total: 0 },
+            coveredFiles: 0,
+            functions: { covered: 0, pct: 0, total: 0 },
+            lines: {
+              covered: lines.covered,
+              pct:
+                lines.total === 0
+                  ? 0
+                  : Math.round((lines.covered / lines.total) * 10000) / 100,
+              total: lines.total,
+            },
+            statements: { covered: 0, pct: 0, total: 0 },
+            totalFiles: 1,
+          },
+        }),
+        diffFiles: [],
+        thresholdMet: null,
+      });
+
+      const dummyFile = diffFile({ path: "x.ts", repoPath: "x.ts" });
+      mockResolveMeasureDiffFiles.mockResolvedValueOnce([dummyFile, dummyFile]);
+      mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+        new Map([
+          ["/repo/packages/a", [dummyFile]],
+          ["/repo/packages/b", [dummyFile]],
+        ]),
+      );
+      mockMeasureMonorepo.mockResolvedValueOnce({
+        packages: pkgLines.map((lines, i) => ({
+          cwd: `/repo/packages/${i}`,
+          outcome: makeMonoPkgOutcome(lines),
+          relCwd: `packages/${i}`,
+        })),
+      });
+
+      const outcome = await runReview({ cwd: "/repo", dryRun: true });
+      expect(outcome.coverage.summary.lines.pct).toBe(expectedPct);
+      expect(outcome.coverage.summary.lines.covered).toBe(expectedCovered);
+      expect(outcome.coverage.summary.lines.total).toBe(expectedTotal);
+    });
+
+    it("computes thresholdMet from merged coverage across packages", async () => {
+      const makeMonoCov = (covered: number, total: number) =>
+        coverageResult({
+          summary: {
+            branches: { covered: 0, pct: 0, total: 0 },
+            coveredFiles: 1,
+            functions: { covered: 0, pct: 0, total: 0 },
+            lines: {
+              covered,
+              pct: Math.round((covered / total) * 10000) / 100,
+              total,
+            },
+            statements: { covered: 0, pct: 0, total: 0 },
+            totalFiles: 1,
+          },
+        });
+
+      const filesA = [
+        diffFile({ path: "src/a.ts", repoPath: "packages/a/src/a.ts" }),
+      ];
+      const filesB = [
+        diffFile({ path: "src/b.ts", repoPath: "packages/b/src/b.ts" }),
+      ];
+
+      mockResolveMeasureDiffFiles.mockResolvedValueOnce([...filesA, ...filesB]);
+      mockGroupDiffFilesByPackage.mockResolvedValueOnce(
+        new Map([
+          ["/repo/packages/a", filesA],
+          ["/repo/packages/b", filesB],
+        ]),
+      );
+      mockMeasureMonorepo.mockResolvedValueOnce({
+        packages: [
+          {
+            cwd: "/repo/packages/a",
+            outcome: {
+              coverage: makeMonoCov(80, 100),
+              diffFiles: filesA,
+              thresholdMet: null,
+            },
+            relCwd: "packages/a",
+          },
+          {
+            cwd: "/repo/packages/b",
+            outcome: {
+              coverage: makeMonoCov(80, 100),
+              diffFiles: filesB,
+              thresholdMet: null,
+            },
+            relCwd: "packages/b",
+          },
+        ],
+      });
+
+      // merged: 160/200 = 80%, threshold 90 → fail
+      const outcome = await runReview({
+        cwd: "/repo",
+        dryRun: true,
+        threshold: 90,
+      });
+      expect(outcome.thresholdMet).toBe(false);
+      expect(outcome.coverage.summary.lines.pct).toBe(80);
+    });
   });
 });
