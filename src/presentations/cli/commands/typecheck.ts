@@ -15,7 +15,9 @@ const runTypecheckCommand = async (
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
 
-  console.error(`🔍 Type-checking diff against ${opts.base}...`);
+  console.error(
+    `🔍 Type-checking diff against ${opts.base ?? "merge-base of HEAD and main"}...`,
+  );
 
   try {
     const diffFiles = await getDiffFiles(cwd, opts.base, extensions);
@@ -60,7 +62,10 @@ export const registerTypecheckCommand = (program: Command): void => {
   program
     .command("typecheck")
     .description("Run TypeScript type-check on changed files")
-    .option("-b, --base <branch>", "Base branch to diff against", "main")
+    .option(
+      "-b, --base <branch>",
+      "Base branch for diff (default: merge-base of HEAD and main)",
+    )
     .option("-c, --cwd <path>", "Project root directory", process.cwd())
     .option(
       "--cmd <command>",

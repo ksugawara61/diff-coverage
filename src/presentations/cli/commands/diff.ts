@@ -33,7 +33,10 @@ export const registerDiffCommand = (program: Command): void => {
   program
     .command("diff")
     .description("List changed source files without running tests")
-    .option("-b, --base <branch>", "Base branch to diff against", "main")
+    .option(
+      "-b, --base <branch>",
+      "Base branch for diff (default: merge-base of HEAD and main)",
+    )
     .option("-c, --cwd <path>", "Project root directory", process.cwd())
     .option(
       "--ext <extensions>",

@@ -21,8 +21,9 @@ export const registerReviewTool = (server: McpServer): void => {
       base: z
         .string()
         .optional()
-        .default("main")
-        .describe("Base branch/ref to diff against (default: main)"),
+        .describe(
+          "Base branch/ref to diff against (default: merge-base of HEAD and main)",
+        ),
       cwd: z.string().describe("Absolute path to the project root"),
       dryRun: z
         .boolean()

@@ -5,7 +5,12 @@ vi.mock("execa", () => ({
 }));
 
 import { execa } from "execa";
-import { getCurrentBranch, getDiffFiles, getRemoteOriginUrl } from "./git.js";
+import {
+  getCurrentBranch,
+  getDiffFiles,
+  getMergeBase,
+  getRemoteOriginUrl,
+} from "./git.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -219,6 +224,43 @@ describe("getDiffFiles", () => {
     expect(files[1].path).toBe("src/b.ts");
     expect(files[1].additions).toBe(2);
     expect(files[1].deletions).toBe(1);
+  });
+
+  it("calls git merge-base when base is omitted and uses the hash as baseRef", async () => {
+    mockGit(
+      { stdout: "abc1234\n" },
+      { stdout: "/project" },
+      { stdout: "src/foo.ts" },
+      { stdout: "1\t0\tsrc/foo.ts" },
+      { stdout: "" },
+    );
+
+    const files = await getDiffFiles("/project");
+
+    expect(files).toHaveLength(1);
+    const mergeBaseCall = mockExeca.mock.calls[0];
+    expect(mergeBaseCall[1]).toEqual(["merge-base", "HEAD", "main"]);
+    const nameOnlyCall = mockExeca.mock.calls[2];
+    expect(nameOnlyCall[1]).toContain("abc1234");
+  });
+});
+
+describe("getMergeBase", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns the trimmed merge-base commit hash", async () => {
+    mockExeca.mockResolvedValueOnce({ stdout: "deadbeef1234\n" } as never);
+    const hash = await getMergeBase("/project");
+    expect(hash).toBe("deadbeef1234");
+    expect(mockExeca).toHaveBeenCalledWith(
+      "git",
+      ["merge-base", "HEAD", "main"],
+      {
+        cwd: "/project",
+      },
+    );
   });
 });
 

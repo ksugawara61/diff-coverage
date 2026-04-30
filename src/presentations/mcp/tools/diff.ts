@@ -14,8 +14,9 @@ export const registerDiffTool = (server: McpServer): void => {
       base: z
         .string()
         .optional()
-        .default("main")
-        .describe("Base branch to diff against"),
+        .describe(
+          "Base branch to diff against (default: merge-base of HEAD and main)",
+        ),
       cwd: z.string().describe("Absolute path to the project root"),
       exclude: z
         .array(z.string())

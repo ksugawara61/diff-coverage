@@ -19,8 +19,9 @@ export const registerMeasureTool = (server: McpServer): void => {
       base: z
         .string()
         .optional()
-        .default("main")
-        .describe("Base branch/ref to diff against (default: main)"),
+        .describe(
+          "Base branch/ref to diff against (default: merge-base of HEAD and main)",
+        ),
       cwd: z
         .string()
         .describe(

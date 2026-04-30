@@ -2,7 +2,7 @@ import { z } from "zod";
 import { RunnerEnumSchema } from "../../../applications/shared/runner-enum.js";
 
 export const MeasureCLIOptsSchema = z.object({
-  base: z.string().default("main"),
+  base: z.string().optional(),
   cmd: z.string().optional(),
   cwd: z.string(),
   diffOnly: z.boolean().optional(),
