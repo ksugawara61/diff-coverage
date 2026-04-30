@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { registerDiffCommand } from "./cli/commands/diff.js";
-import { registerMeasureCommand } from "./cli/commands/measure.js";
-import { registerReviewCommand } from "./cli/commands/review.js";
+import { registerDiffCommand } from "./presentations/commands/diff.js";
+import { registerMeasureCommand } from "./presentations/commands/measure.js";
+import { registerReviewCommand } from "./presentations/commands/review.js";
 
 const name = "diff-coverage";
 const version = "0.1.4";

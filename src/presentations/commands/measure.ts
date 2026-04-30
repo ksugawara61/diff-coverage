@@ -1,12 +1,12 @@
 import { relative, resolve } from "node:path";
 import type { Command } from "commander";
 import type { z } from "zod";
-import { resolveRunner } from "../../../applications/detect/index.js";
-import { formatDiffFiles } from "../../../applications/diff/index.js";
+import { resolveRunner } from "../../applications/detect/index.js";
+import { formatDiffFiles } from "../../applications/diff/index.js";
 import {
   formatMonorepoResult,
   formatResult,
-} from "../../../applications/measure/format.js";
+} from "../../applications/measure/format.js";
 import {
   type MeasureOptions,
   type MeasureOutcome,
@@ -14,13 +14,13 @@ import {
   measureMonorepo,
   measureWithDiffFiles,
   resolveMeasureDiffFiles,
-} from "../../../applications/measure/index.js";
-import type { DiffFile } from "../../../repositories/git.js";
+} from "../../applications/measure/index.js";
+import type { DiffFile } from "../../repositories/git.js";
 import {
   groupDiffFilesByPackage,
   remapDiffFilePaths,
-} from "../../../repositories/monorepo.js";
-import { parseCsv, parseCsvOption } from "../csv.js";
+} from "../../repositories/monorepo.js";
+import { parseCsv, parseCsvOption } from "../shared/csv.js";
 import { MeasureCLIOptsSchema } from "./measure-schema.js";
 
 type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;

@@ -5,12 +5,12 @@ import {
   formatReviewResult,
   NoPullRequestError,
   runReview,
-} from "../../../applications/review/index.js";
+} from "../../applications/review/index.js";
 import {
   GhNotAuthenticatedError,
   GhNotInstalledError,
-} from "../../../repositories/github.js";
-import { parseCsv, parseCsvOption } from "../csv.js";
+} from "../../repositories/github.js";
+import { parseCsv, parseCsvOption } from "../shared/csv.js";
 import { ReviewCLIOptsSchema } from "./review-schema.js";
 
 type ReviewCliOptions = z.infer<typeof ReviewCLIOptsSchema>;

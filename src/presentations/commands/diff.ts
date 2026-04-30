@@ -4,8 +4,8 @@ import type { z } from "zod";
 import {
   formatDiffFiles,
   runDiffFiles,
-} from "../../../applications/diff/index.js";
-import { parseCsv, parseCsvOption } from "../csv.js";
+} from "../../applications/diff/index.js";
+import { parseCsv, parseCsvOption } from "../shared/csv.js";
 import { DiffCLIOptsSchema } from "./diff-schema.js";
 
 type DiffCliOptions = z.infer<typeof DiffCLIOptsSchema>;

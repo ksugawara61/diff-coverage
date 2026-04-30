@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { RunnerEnumSchema } from "../../../applications/shared/runner-enum.js";
+import { RunnerEnumSchema } from "../../applications/shared/runner-enum.js";
 
-export const ReviewCLIOptsSchema = z.object({
+export const MeasureCLIOptsSchema = z.object({
   base: z.string().optional(),
   cmd: z.string().optional(),
   cwd: z.string(),
-  dryRun: z.boolean().optional(),
+  diffOnly: z.boolean().optional(),
   exclude: z.string().optional(),
   ext: z.string().default("ts,tsx,js,jsx"),
-  pr: z.number().int().positive().optional(),
+  json: z.boolean().optional(),
   runner: RunnerEnumSchema.default("auto"),
   threshold: z.number().optional(),
 });
