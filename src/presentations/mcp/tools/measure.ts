@@ -1,9 +1,17 @@
 import { resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { formatResult } from "../../../applications/measure/format.js";
-import { runMeasure } from "../../../applications/measure/index.js";
+import {
+  formatMonorepoResult,
+  formatResult,
+} from "../../../applications/measure/format.js";
+import {
+  measureMonorepo,
+  measureWithDiffFiles,
+  resolveMeasureDiffFiles,
+} from "../../../applications/measure/index.js";
 import { RunnerEnumSchema } from "../../../applications/shared/runner-enum.js";
+import { groupDiffFilesByPackage } from "../../../repositories/monorepo.js";
 
 const RunnerSchema = RunnerEnumSchema.optional()
   .default("auto")
@@ -61,17 +69,20 @@ export const registerMeasureTool = (server: McpServer): void => {
       threshold,
     }) => {
       try {
-        const outcome = await runMeasure({
+        const resolvedCwd = resolve(cwd);
+        const opts = {
           base,
-          cwd: resolve(cwd),
+          cwd: resolvedCwd,
           exclude,
           extensions,
           runner,
           testCommand,
           threshold,
-        });
+        };
 
-        if (outcome.diffFiles.length === 0) {
+        const diffFiles = await resolveMeasureDiffFiles(opts);
+
+        if (diffFiles.length === 0) {
           return {
             content: [
               {
@@ -82,6 +93,39 @@ export const registerMeasureTool = (server: McpServer): void => {
           };
         }
 
+        const packageMap = await groupDiffFilesByPackage(
+          resolvedCwd,
+          diffFiles,
+        );
+
+        if (packageMap.size > 1) {
+          const monorepoOutcome = await measureMonorepo(opts, packageMap);
+          const isError = monorepoOutcome.packages.some(
+            (p) => p.outcome.thresholdMet === false,
+          );
+          return {
+            content: [
+              {
+                text: formatMonorepoResult(monorepoOutcome.packages, threshold),
+                type: "text",
+              },
+              {
+                text: JSON.stringify(
+                  monorepoOutcome.packages.map((p) => ({
+                    coverage: p.outcome.coverage,
+                    cwd: p.relCwd,
+                  })),
+                  null,
+                  2,
+                ),
+                type: "text",
+              },
+            ],
+            isError,
+          };
+        }
+
+        const outcome = await measureWithDiffFiles(opts, diffFiles);
         return {
           content: [
             { text: formatResult(outcome.coverage, threshold), type: "text" },

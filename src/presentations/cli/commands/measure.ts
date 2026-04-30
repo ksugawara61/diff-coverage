@@ -1,74 +1,137 @@
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import type { Command } from "commander";
 import type { z } from "zod";
 import { resolveRunner } from "../../../applications/detect/index.js";
 import { formatDiffFiles } from "../../../applications/diff/index.js";
-import { formatResult } from "../../../applications/measure/format.js";
 import {
+  formatMonorepoResult,
+  formatResult,
+} from "../../../applications/measure/format.js";
+import {
+  type MeasureOptions,
+  type MeasureOutcome,
+  type MonorepoMeasureOutcome,
+  measureMonorepo,
   measureWithDiffFiles,
   resolveMeasureDiffFiles,
 } from "../../../applications/measure/index.js";
+import type { DiffFile } from "../../../repositories/git.js";
+import { groupDiffFilesByPackage } from "../../../repositories/monorepo.js";
 import { parseCsv, parseCsvOption } from "../csv.js";
 import { MeasureCLIOptsSchema } from "./measure-schema.js";
 
 type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;
 
+const printMonorepoResult = (
+  outcome: MonorepoMeasureOutcome,
+  threshold: number | undefined,
+  json: boolean | undefined,
+): void => {
+  if (json) {
+    console.log(
+      JSON.stringify(
+        outcome.packages.map((p) => ({
+          coverage: p.outcome.coverage,
+          cwd: p.relCwd,
+        })),
+        null,
+        2,
+      ),
+    );
+  } else {
+    console.log(formatMonorepoResult(outcome.packages, threshold));
+  }
+  if (outcome.packages.some((p) => p.outcome.thresholdMet === false)) {
+    process.exit(1);
+  }
+};
+
+const printSingleResult = (
+  outcome: MeasureOutcome,
+  threshold: number | undefined,
+  json: boolean | undefined,
+): void => {
+  if (json) {
+    console.log(JSON.stringify(outcome.coverage, null, 2));
+  } else {
+    console.log(formatResult(outcome.coverage, threshold));
+  }
+  if (outcome.thresholdMet === false) {
+    process.exit(1);
+  }
+};
+
+const runMonorepoMode = async (
+  opts: MeasureCliOptions,
+  baseOpts: MeasureOptions,
+  packageMap: Map<string, DiffFile[]>,
+): Promise<void> => {
+  console.error(
+    `📊 Measuring diff coverage against ${opts.base ?? "merge-base of HEAD and main"} (monorepo: ${packageMap.size} packages)...`,
+  );
+  console.error(
+    [...packageMap.entries()]
+      .map(
+        ([pkgCwd, pkgFiles]) =>
+          `📁 ${relative(baseOpts.cwd, pkgCwd) || "."}: ${pkgFiles.map((f) => f.path).join(", ")}`,
+      )
+      .join("\n"),
+  );
+  const outcome = await measureMonorepo(baseOpts, packageMap);
+  printMonorepoResult(outcome, opts.threshold, opts.json);
+};
+
+const runSinglePackageMode = async (
+  opts: MeasureCliOptions,
+  baseOpts: MeasureOptions,
+  diffFiles: DiffFile[],
+): Promise<void> => {
+  const runner = await resolveRunner(baseOpts.cwd, opts.runner);
+  console.error(
+    `📊 Measuring diff coverage against ${opts.base ?? "merge-base of HEAD and main"} (runner: ${runner})...`,
+  );
+  console.error(`📁 Changed files: ${diffFiles.map((f) => f.path).join(", ")}`);
+  console.error(`🧪 Running ${runner === "vitest" ? "Vitest" : "Jest"}...\n`);
+  const outcome = await measureWithDiffFiles(
+    { ...baseOpts, runner },
+    diffFiles,
+  );
+  printSingleResult(outcome, opts.threshold, opts.json);
+};
+
 const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const exclude = parseCsvOption(opts.exclude);
-  const runner = await resolveRunner(cwd, opts.runner);
-
-  console.error(
-    `📊 Measuring diff coverage against ${opts.base ?? "merge-base of HEAD and main"} (runner: ${runner})...`,
-  );
+  const baseOpts: MeasureOptions = {
+    base: opts.base,
+    cwd,
+    exclude,
+    extensions,
+    runner: opts.runner,
+    testCommand: opts.cmd,
+    threshold: opts.threshold,
+  };
 
   try {
-    const diffFiles = await resolveMeasureDiffFiles({
-      base: opts.base,
-      cwd,
-      exclude,
-      extensions,
-    });
+    const diffFiles = await resolveMeasureDiffFiles(baseOpts);
 
     if (diffFiles.length === 0) {
       console.log("No changed source files found.");
       process.exit(0);
     }
 
-    console.error(
-      `📁 Changed files: ${diffFiles.map((f) => f.path).join(", ")}`,
-    );
-
     if (opts.diffOnly) {
       console.log(formatDiffFiles(diffFiles));
       process.exit(0);
     }
 
-    const runnerLabel = runner === "vitest" ? "Vitest" : "Jest";
-    console.error(`🧪 Running ${runnerLabel}...\n`);
+    const packageMap = await groupDiffFilesByPackage(cwd, diffFiles);
 
-    const outcome = await measureWithDiffFiles(
-      {
-        base: opts.base,
-        cwd,
-        exclude,
-        extensions,
-        runner,
-        testCommand: opts.cmd,
-        threshold: opts.threshold,
-      },
-      diffFiles,
-    );
-
-    if (opts.json) {
-      console.log(JSON.stringify(outcome.coverage, null, 2));
+    if (packageMap.size > 1) {
+      await runMonorepoMode(opts, baseOpts, packageMap);
     } else {
-      console.log(formatResult(outcome.coverage, opts.threshold));
-    }
-
-    if (outcome.thresholdMet === false) {
-      process.exit(1);
+      await runSinglePackageMode(opts, baseOpts, diffFiles);
     }
   } catch (err) {
     console.error("Error:", err instanceof Error ? err.message : err);
