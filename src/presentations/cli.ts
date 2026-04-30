@@ -13,11 +13,11 @@ import { registerMeasureTool } from "./mcp/tools/measure.js";
 import { registerReviewTool } from "./mcp/tools/review.js";
 import { registerUncoveredTool } from "./mcp/tools/uncovered.js";
 
+const name = "diff-coverage";
+const version = "0.1.2";
+
 if (process.argv.includes("--mcp")) {
-  const server = new McpServer({
-    name: "diff-coverage",
-    version: "0.1.0",
-  });
+  const server = new McpServer({ name, version });
 
   registerMeasureTool(server);
   registerDiffTool(server);
@@ -31,9 +31,9 @@ if (process.argv.includes("--mcp")) {
   const program = new Command();
 
   program
-    .name("diff-coverage")
+    .name(name)
     .description("Measure test coverage for git diff files (Jest or Vitest)")
-    .version("0.1.0");
+    .version(version);
 
   registerMeasureCommand(program);
   registerDiffCommand(program);
