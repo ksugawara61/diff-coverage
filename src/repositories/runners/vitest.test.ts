@@ -8,7 +8,7 @@ vi.mock("execa", () => ({
 }));
 
 import { execa } from "execa";
-import { runVitest } from "./vitest.js";
+import { detectVitestCoverageProvider, runVitest } from "./vitest.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -22,6 +22,59 @@ function extractCoverageIncludeValues(args: string[]): string[] {
     .filter((v): v is string => v != null);
 }
 
+describe("detectVitestCoverageProvider", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "diff-coverage-provider-"));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { force: true, recursive: true });
+  });
+
+  it.each([
+    {
+      expected: "v8",
+      name: "returns 'v8' when @vitest/coverage-v8 is installed",
+      setup: async (dir: string) => {
+        await mkdir(join(dir, "node_modules/@vitest/coverage-v8"), {
+          recursive: true,
+        });
+      },
+    },
+    {
+      expected: "istanbul",
+      name: "returns 'istanbul' when only @vitest/coverage-istanbul is installed",
+      setup: async (dir: string) => {
+        await mkdir(join(dir, "node_modules/@vitest/coverage-istanbul"), {
+          recursive: true,
+        });
+      },
+    },
+    {
+      expected: "v8",
+      name: "prefers v8 over istanbul when both are installed",
+      setup: async (dir: string) => {
+        await mkdir(join(dir, "node_modules/@vitest/coverage-v8"), {
+          recursive: true,
+        });
+        await mkdir(join(dir, "node_modules/@vitest/coverage-istanbul"), {
+          recursive: true,
+        });
+      },
+    },
+    {
+      expected: null,
+      name: "returns null when neither provider is installed",
+      setup: async (_dir: string) => {},
+    },
+  ])("$name", async ({ setup, expected }) => {
+    await setup(tmpDir);
+    expect(await detectVitestCoverageProvider(tmpDir)).toBe(expected);
+  });
+});
+
 describe("runVitest", () => {
   let tmpDir: string;
 
@@ -29,6 +82,9 @@ describe("runVitest", () => {
     vi.clearAllMocks();
     tmpDir = await mkdtemp(join(tmpdir(), "diff-coverage-vitest-"));
     await mkdir(join(tmpDir, "coverage"), { recursive: true });
+    await mkdir(join(tmpDir, "node_modules/@vitest/coverage-v8"), {
+      recursive: true,
+    });
   });
 
   afterEach(async () => {
@@ -44,8 +100,11 @@ describe("runVitest", () => {
     },
     {
       expectedBin: "pnpm",
-      expectedFirstArg: "vitest",
-      makeOptions: () => ({ cwd: tmpDir, testCommand: "pnpm vitest" }),
+      expectedFirstArg: "exec",
+      makeOptions: () => ({
+        cwd: tmpDir,
+        testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+      }),
       name: "with custom testCommand",
     },
   ])("invokes vitest $name", async ({
@@ -61,9 +120,21 @@ describe("runVitest", () => {
     expect(args[0]).toBe(expectedFirstArg);
   });
 
+  it("does not duplicate 'run' when testCommand already contains it", async () => {
+    await runVitest(
+      {
+        cwd: tmpDir,
+        testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+      },
+      ["src/foo.ts"],
+    );
+    const args = getInvocationArgs();
+    expect(args.filter((a) => a === "run")).toHaveLength(1);
+  });
+
   describe("CLI arguments", () => {
     it.each([
-      ["run"],
+      ["related"],
       ["--coverage"],
       ["--coverage.enabled=true"],
       ["--coverage.provider=v8"],
@@ -79,6 +150,76 @@ describe("runVitest", () => {
       const includes = extractCoverageIncludeValues(getInvocationArgs());
       expect(includes).toContain("src/a.ts");
       expect(includes).toContain("src/b.ts");
+    });
+
+    it("appends diff file paths as positional args when using related", async () => {
+      await runVitest({ cwd: tmpDir }, ["src/a.ts", "src/b.ts"]);
+      const args = getInvocationArgs();
+      // Each file appears twice: once as --coverage.include value, once as positional arg
+      expect(args.filter((a) => a === "src/a.ts")).toHaveLength(2);
+      expect(args.filter((a) => a === "src/b.ts")).toHaveLength(2);
+    });
+
+    it("does not append diff file paths as positional args when using run", async () => {
+      await runVitest(
+        {
+          cwd: tmpDir,
+          testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+        },
+        ["src/a.ts", "src/b.ts"],
+      );
+      const args = getInvocationArgs();
+      // Each file appears once only (as --coverage.include value, not as positional arg)
+      expect(args.filter((a) => a === "src/a.ts")).toHaveLength(1);
+      expect(args.filter((a) => a === "src/b.ts")).toHaveLength(1);
+    });
+
+    it("uses --coverage.provider=istanbul when only istanbul is installed", async () => {
+      await rm(join(tmpDir, "node_modules/@vitest/coverage-v8"), {
+        force: true,
+        recursive: true,
+      });
+      await mkdir(join(tmpDir, "node_modules/@vitest/coverage-istanbul"), {
+        recursive: true,
+      });
+
+      await runVitest({ cwd: tmpDir }, ["src/foo.ts"]);
+      expect(getInvocationArgs()).toContain("--coverage.provider=istanbul");
+    });
+  });
+
+  describe("fallback to diff-coverage's own @vitest/coverage-v8", () => {
+    beforeEach(async () => {
+      await rm(join(tmpDir, "node_modules"), { force: true, recursive: true });
+    });
+
+    it("uses v8 provider when project has no provider installed", async () => {
+      await runVitest({ cwd: tmpDir }, ["src/foo.ts"]);
+      expect(getInvocationArgs()).toContain("--coverage.provider=v8");
+    });
+
+    it("creates and removes a symlink during vitest execution", async () => {
+      const symlinkPath = join(tmpDir, "node_modules/@vitest/coverage-v8");
+
+      let symlinkExistedDuringRun = false;
+      mockExeca.mockImplementationOnce(async () => {
+        const { access: fsAccess } = await import("node:fs/promises");
+        try {
+          await fsAccess(symlinkPath);
+          symlinkExistedDuringRun = true;
+        } catch {
+          // not found
+        }
+        return { stderr: "", stdout: "" } as never;
+      });
+
+      await runVitest({ cwd: tmpDir }, ["src/foo.ts"]);
+
+      expect(symlinkExistedDuringRun).toBe(true);
+
+      // Symlink should be cleaned up after vitest exits
+      const { access: fsAccess } = await import("node:fs/promises");
+      await expect(fsAccess(symlinkPath)).rejects.toThrow();
     });
   });
 
