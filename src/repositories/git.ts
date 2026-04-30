@@ -29,6 +29,13 @@ const resolveBaseRef = async (cwd: string, base: string): Promise<string> => {
   }
 };
 
+export const getMergeBase = async (cwd: string): Promise<string> => {
+  const { stdout } = await execa("git", ["merge-base", "HEAD", "main"], {
+    cwd,
+  });
+  return stdout.trim();
+};
+
 const getAddedLines = async (
   cwd: string,
   base: string,
@@ -65,7 +72,7 @@ const getAddedLines = async (
 
 export const getDiffFiles = async (
   cwd: string,
-  base = "main",
+  base?: string,
   extensions = DEFAULT_EXTENSIONS,
   excludePatterns = DEFAULT_EXCLUDE,
   extraExcludePatterns: string[] = [],
@@ -73,7 +80,10 @@ export const getDiffFiles = async (
   const extPattern = extensions.join("|");
   const allExcludePatterns = [...excludePatterns, ...extraExcludePatterns];
 
-  const baseRef = await resolveBaseRef(cwd, base);
+  const baseRef =
+    base !== undefined
+      ? await resolveBaseRef(cwd, base)
+      : await getMergeBase(cwd);
 
   const { stdout: gitRoot } = await execa(
     "git",

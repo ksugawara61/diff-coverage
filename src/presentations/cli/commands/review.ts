@@ -34,7 +34,9 @@ const handleReviewError = (err: unknown): never => {
 
 const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
   try {
-    console.error(`📝 Reviewing PR for current branch (base: ${opts.base})...`);
+    console.error(
+      `📝 Reviewing PR for current branch (base: ${opts.base ?? "merge-base of HEAD and main"})...`,
+    );
     const outcome = await runReview({
       base: opts.base,
       cwd: resolve(opts.cwd),
@@ -68,7 +70,10 @@ export const registerReviewCommand = (program: Command): void => {
     .description(
       "Post inline review comments on the GitHub PR for the current branch (uses `gh` CLI for auth)",
     )
-    .option("-b, --base <branch>", "Base branch to diff against", "main")
+    .option(
+      "-b, --base <branch>",
+      "Base branch for diff (default: merge-base of HEAD and main)",
+    )
     .option("-c, --cwd <path>", "Project root directory", process.cwd())
     .option(
       "-r, --runner <runner>",

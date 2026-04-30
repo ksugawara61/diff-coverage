@@ -20,7 +20,7 @@ const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   const runner = await resolveRunner(cwd, opts.runner);
 
   console.error(
-    `📊 Measuring diff coverage against ${opts.base} (runner: ${runner})...`,
+    `📊 Measuring diff coverage against ${opts.base ?? "merge-base of HEAD and main"} (runner: ${runner})...`,
   );
 
   try {
@@ -89,7 +89,10 @@ export const registerMeasureCommand = (program: Command): void => {
   program
     .command("measure", { isDefault: true })
     .description("Measure coverage for changed files")
-    .option("-b, --base <branch>", "Base branch to diff against", "main")
+    .option(
+      "-b, --base <branch>",
+      "Base branch for diff (default: merge-base of HEAD and main)",
+    )
     .option("-c, --cwd <path>", "Project root directory", process.cwd())
     .option(
       "-r, --runner <runner>",
