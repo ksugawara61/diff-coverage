@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Does
 
-`diff-coverage` is a CLI tool and MCP server that measures test coverage **only for files changed in a git diff**. Rather than measuring whole-project coverage, it runs Jest or Vitest on the changed files and reports per-file coverage, uncovered lines, and optional threshold enforcement (exit code 1 on failure).
-
-It also exposes this functionality as an MCP server so Claude Code can call it directly as tools during code review.
+`diff-coverage` is a CLI tool that measures test coverage **only for files changed in a git diff**. Rather than measuring whole-project coverage, it runs Jest or Vitest on the changed files and reports per-file coverage, uncovered lines, and optional threshold enforcement (exit code 1 on failure).
 
 ## Commands
 
@@ -29,13 +27,8 @@ pnpm vitest run src/diff.test.ts
 
 Run the compiled CLI against an example project:
 ```bash
-node dist/cli.js measure --cwd example/jest-project --base main
-node dist/cli.js measure --cwd example/vitest-project --base main
-```
-
-Run the MCP server:
-```bash
-node dist/mcp.js
+node dist/presentations/cli.js measure --cwd example/jest-project --base main
+node dist/presentations/cli.js measure --cwd example/vitest-project --base main
 ```
 
 ## Git Hooks (lefthook)
@@ -45,11 +38,11 @@ node dist/mcp.js
 
 ## Architecture
 
-The project has three entry points that all consume the same core module:
+The project uses a layered architecture with a single CLI entry point:
 
-- **`src/cli.ts`** — Commander-based CLI (`measure`, `diff`, `detect`, `typecheck` subcommands)
-- **`src/mcp.ts`** — MCP server wrapping core functions as tools for Claude Code
-- **`src/core.ts`** — All business logic; the other two files are thin wrappers
+- **`src/presentations/cli.ts`** — Commander-based CLI (`measure`, `diff`, `detect`, `typecheck`, `review` subcommands)
+- **`src/applications/`** — Business logic per command (measure, diff, review, typecheck, detect)
+- **`src/repositories/`** — Data access layer (git, github, coverage files, runners)
 
 ### Data flow for `measure`
 
@@ -62,12 +55,8 @@ The project has three entry points that all consume the same core module:
 
 ### Runner differences
 
-- **Jest** (`src/runner/jest.ts`): uses `--collectCoverageFrom` per file with `--findRelatedTests`
-- **Vitest** (`src/runner/vitest.ts`): uses `--coverage.include` patterns; post-processes `coverage-final.json` to normalize Vitest's relative paths back to absolute paths (a compatibility quirk)
-
-### MCP tools
-
-`src/mcp.ts` exposes four tools: `measure_diff_coverage`, `get_diff_files`, `get_uncovered_lines`, `detect_runner`. All use Zod for parameter validation and return both a formatted text string and structured JSON in the content array.
+- **Jest** (`src/repositories/runners/jest.ts`): uses `--collectCoverageFrom` per file with `--findRelatedTests`
+- **Vitest** (`src/repositories/runners/vitest.ts`): uses `--coverage.include` patterns; post-processes `coverage-final.json` to normalize Vitest's relative paths back to absolute paths (a compatibility quirk)
 
 ## Code Conventions
 
@@ -85,4 +74,4 @@ Key rules to be aware of:
 
 **Process execution:** All external processes (git, jest, vitest, tsc) are run via `execa`. Tests mock `execa` to avoid real process spawning.
 
-**Test files** are colocated with their source files in `src/`. Each test file sits next to the module it tests (e.g. `src/runner/jest.test.ts` tests `src/runner/jest.ts`).
+**Test files** are colocated with their source files in `src/`. Each test file sits next to the module it tests (e.g. `src/repositories/runners/jest.test.ts` tests `src/repositories/runners/jest.ts`).

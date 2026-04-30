@@ -1,8 +1,8 @@
 # diff-coverage
 
-A CLI tool and MCP server that measures Jest/Vitest test coverage **only for files changed in a git diff**.
+A CLI tool that measures Jest/Vitest test coverage **only for files changed in a git diff**.
 
-Instead of measuring whole-project coverage, `diff-coverage` focuses on the lines you actually changed — giving you actionable, targeted feedback. It also integrates with [Claude Code](https://claude.ai/code) as an MCP server, enabling automatic coverage checks during code review.
+Instead of measuring whole-project coverage, `diff-coverage` focuses on the lines you actually changed — giving you actionable, targeted feedback.
 
 ## Features
 
@@ -11,7 +11,7 @@ Instead of measuring whole-project coverage, `diff-coverage` focuses on the line
 - Per-file coverage breakdown with uncovered line numbers
 - Configurable pass/fail threshold (exits with code 1 on failure)
 - JSON output for programmatic use
-- MCP server mode for Claude Code integration
+- GitHub PR review comments with coverage gaps (`review` command)
 
 ## Installation
 
@@ -72,55 +72,6 @@ Threshold: 80% → ❌ FAIL
 ❌ src/utils/parser.ts
    Lines: 30%  Stmts: 28%  Fns: 0%  Branches: 0%
    Uncovered lines: 12, 15, 18, 23, 34 ... (+8)
-```
-
-## MCP Server (Claude Code Integration)
-
-`diff-coverage` can run as an [MCP](https://modelcontextprotocol.io/) server, exposing coverage tools that Claude Code can call directly during a session.
-
-### 1. Register the MCP server
-
-```bash
-# Project-local (writes to .mcp.json)
-claude mcp add diff-coverage --scope project -- npx diff-coverage --mcp
-
-# Or user-wide
-claude mcp add diff-coverage --scope user -- npx diff-coverage --mcp
-```
-
-### 2. Or add it manually to `.mcp.json`
-
-```json
-{
-  "mcpServers": {
-    "diff-coverage": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["diff-coverage", "--mcp"]
-    }
-  }
-}
-```
-
-### 3. Available MCP tools
-
-| Tool | Description |
-| --- | --- |
-| `measure_diff_coverage` | Run tests and measure coverage for changed files |
-| `get_diff_files` | List changed files without running tests |
-| `get_uncovered_lines` | Show uncovered lines for a specific file in detail |
-| `detect_runner` | Detect whether the project uses Jest or Vitest |
-
-### 4. Recommended: add instructions to `CLAUDE.md`
-
-```markdown
-## Test Coverage
-
-After completing any implementation, always run the following:
-
-1. Use `measure_diff_coverage` to measure coverage (cwd: /path/to/project)
-2. For files below 80%, use `get_uncovered_lines` to identify missing coverage
-3. Add tests for uncovered lines before marking the task complete
 ```
 
 ## CI Usage

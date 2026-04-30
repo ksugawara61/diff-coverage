@@ -30,7 +30,6 @@
     "fmt": "biome check --write .",
     "knip": "knip",
     "lint": "biome lint .",
-    "mcp": "node dist/presentations/cli.js --mcp",
     "prepare": "lefthook install",
     "start": "node dist/presentations/cli.js",
     "test": "vitest run",
