@@ -30,7 +30,7 @@
     "fmt": "biome check --write .",
     "knip": "knip",
     "lint": "biome lint .",
-    "prepare": "lefthook install",
+    "prepare": "if test \"$CI\" != \"true\" ; then lefthook install; fi",
     "start": "node dist/presentations/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",

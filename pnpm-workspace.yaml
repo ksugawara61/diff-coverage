@@ -1,0 +1,7 @@
+autoInstallPeers: true
+minimumReleaseAge: 4320
+
+onlyBuiltDependencies:
+- lefthook
+                                                                                                         
+strictPeerDependencies: false
