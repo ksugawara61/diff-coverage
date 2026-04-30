@@ -134,7 +134,7 @@ describe("runVitest", () => {
 
   describe("CLI arguments", () => {
     it.each([
-      ["run"],
+      ["related"],
       ["--coverage"],
       ["--coverage.enabled=true"],
       ["--coverage.provider=v8"],
@@ -150,6 +150,28 @@ describe("runVitest", () => {
       const includes = extractCoverageIncludeValues(getInvocationArgs());
       expect(includes).toContain("src/a.ts");
       expect(includes).toContain("src/b.ts");
+    });
+
+    it("appends diff file paths as positional args when using related", async () => {
+      await runVitest({ cwd: tmpDir }, ["src/a.ts", "src/b.ts"]);
+      const args = getInvocationArgs();
+      // Each file appears twice: once as --coverage.include value, once as positional arg
+      expect(args.filter((a) => a === "src/a.ts")).toHaveLength(2);
+      expect(args.filter((a) => a === "src/b.ts")).toHaveLength(2);
+    });
+
+    it("does not append diff file paths as positional args when using run", async () => {
+      await runVitest(
+        {
+          cwd: tmpDir,
+          testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+        },
+        ["src/a.ts", "src/b.ts"],
+      );
+      const args = getInvocationArgs();
+      // Each file appears once only (as --coverage.include value, not as positional arg)
+      expect(args.filter((a) => a === "src/a.ts")).toHaveLength(1);
+      expect(args.filter((a) => a === "src/b.ts")).toHaveLength(1);
     });
 
     it("uses --coverage.provider=istanbul when only istanbul is installed", async () => {

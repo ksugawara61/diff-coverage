@@ -75,6 +75,8 @@ export async function runVitest(
 
   await withFallbackProvider(cwd, async (provider) => {
     const includeArgs = diffFilePaths.flatMap((p) => ["--coverage.include", p]);
+    const cmd = testCommand ?? "npx vitest related";
+    const usesRelated = cmd.split(" ").includes("related");
 
     const vitestArgs = [
       "--coverage",
@@ -85,9 +87,9 @@ export async function runVitest(
       "--coverage.all=false",
       ...includeArgs,
       "--passWithNoTests",
+      ...(usesRelated ? diffFilePaths : []),
     ];
 
-    const cmd = testCommand ?? "npx vitest run";
     const [bin, ...baseArgs] = cmd.split(" ");
 
     await execa(bin, [...baseArgs, ...vitestArgs], {
