@@ -1,5 +1,11 @@
 import type { DiffCoverageResult } from "./coverage.js";
 
+type PackageResult = {
+  cwd: string;
+  outcome: { coverage: DiffCoverageResult };
+  relCwd: string;
+};
+
 const getCoverageIcon = (pct: number): string => {
   if (pct >= 80) return "✅";
   if (pct >= 50) return "⚠️";
@@ -58,3 +64,13 @@ export const formatResult = (
 
   return out.join("\n");
 };
+
+export const formatMonorepoResult = (
+  packages: PackageResult[],
+  threshold?: number,
+): string =>
+  packages
+    .map(
+      (p) => `📦 ${p.relCwd}\n${formatResult(p.outcome.coverage, threshold)}`,
+    )
+    .join("\n\n---\n\n");

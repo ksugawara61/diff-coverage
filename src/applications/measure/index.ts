@@ -1,11 +1,13 @@
+import { relative } from "node:path";
 import { loadConfig } from "../../repositories/config-file.js";
 import type { DiffFile } from "../../repositories/git.js";
 import { getDiffFiles } from "../../repositories/git.js";
+import { remapDiffFilePaths } from "../../repositories/monorepo.js";
 import { globToRegex } from "../shared/glob.js";
 import type { DiffCoverageResult, RunOptions } from "./coverage.js";
 import { runCoverage } from "./runner-orchestrator.js";
 
-type MeasureOptions = {
+export type MeasureOptions = {
   base?: string;
   cwd: string;
   exclude?: string[];
@@ -75,4 +77,32 @@ export const runMeasure = async (
 ): Promise<MeasureOutcome> => {
   const diffFiles = await resolveMeasureDiffFiles(opts);
   return measureWithDiffFiles(opts, diffFiles);
+};
+
+export type MonorepoMeasureOutcome = {
+  packages: Array<{
+    cwd: string;
+    outcome: MeasureOutcome;
+    relCwd: string;
+  }>;
+};
+
+export const measureMonorepo = async (
+  opts: MeasureOptions,
+  packageMap: Map<string, DiffFile[]>,
+): Promise<MonorepoMeasureOutcome> => {
+  const packages: MonorepoMeasureOutcome["packages"] = [];
+  for (const [pkgCwd, pkgFiles] of packageMap) {
+    const remapped = remapDiffFilePaths(pkgFiles, opts.cwd, pkgCwd);
+    const outcome = await measureWithDiffFiles(
+      { ...opts, cwd: pkgCwd },
+      remapped,
+    );
+    packages.push({
+      cwd: pkgCwd,
+      outcome,
+      relCwd: relative(opts.cwd, pkgCwd) || ".",
+    });
+  }
+  return { packages };
 };
