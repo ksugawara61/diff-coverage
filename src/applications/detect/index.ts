@@ -13,5 +13,3 @@ export const resolveRunner = async (
   if (testCommand?.includes("jest")) return "jest";
   return detectRunner(cwd);
 };
-
-export { detectRunner };
