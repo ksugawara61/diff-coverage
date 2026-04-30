@@ -6,18 +6,22 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 
 type CoverageProvider = "v8" | "istanbul";
 type VitestRunInput = { cwd: string; testCommand?: string };
 
-// node_modules directory bundled with diff-coverage itself
-const ownNodeModulesPath = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../../node_modules",
-);
+const require = createRequire(import.meta.url);
+
+const resolveOwnV8Path = (): string | null => {
+  try {
+    return dirname(require.resolve("@vitest/coverage-v8/package.json"));
+  } catch {
+    return null;
+  }
+};
 
 export async function detectVitestCoverageProvider(
   cwd: string,
@@ -46,10 +50,8 @@ async function withFallbackProvider(
   }
 
   // Fall back to @vitest/coverage-v8 bundled with diff-coverage itself
-  const ownV8Path = join(ownNodeModulesPath, "@vitest", "coverage-v8");
-  try {
-    await access(ownV8Path);
-  } catch {
+  const ownV8Path = resolveOwnV8Path();
+  if (ownV8Path === null) {
     throw new Error(
       "No Vitest coverage provider found. Install @vitest/coverage-v8 or @vitest/coverage-istanbul in your project.",
     );
