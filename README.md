@@ -1,52 +1,58 @@
 # diff-coverage
 
-Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー。
+A CLI tool and MCP server that measures Jest/Vitest test coverage **only for files changed in a git diff**.
 
-Claude Codeと連携して、実装したコードに対してどれくらいテストが書かれているかを自動チェックできます。
+Instead of measuring whole-project coverage, `diff-coverage` focuses on the lines you actually changed — giving you actionable, targeted feedback. It also integrates with [Claude Code](https://claude.ai/code) as an MCP server, enabling automatic coverage checks during code review.
 
-## インストール
+## Features
+
+- Measures coverage only for changed files (not the entire codebase)
+- Supports both **Jest** and **Vitest** (auto-detected)
+- Per-file coverage breakdown with uncovered line numbers
+- Configurable pass/fail threshold (exits with code 1 on failure)
+- JSON output for programmatic use
+- MCP server mode for Claude Code integration
+
+## Installation
 
 ```bash
-git clone https://github.com/yourname/diff-coverage
-cd diff-coverage
-npm install
-npm run build
+npm install -g diff-coverage
 ```
 
-グローバルインストール:
+Or run without installing via `npx`:
 
 ```bash
-npm install -g .
+npx diff-coverage measure --cwd /path/to/your/project
 ```
 
-## CLI 使い方
+## CLI Usage
 
-### 基本（mainブランチとの差分を計測）
+### Basic — compare against `main`
 
 ```bash
 diff-coverage measure --cwd /path/to/your/project
 ```
 
-### オプション一覧
+### All options
 
 ```bash
 diff-coverage measure \
-  --cwd /path/to/project \   # プロジェクトルート（必須）
-  --base main \               # 比較ブランチ（default: main）
-  --cmd "npx jest" \          # Jestコマンド（default: npx jest）
-  --threshold 80 \            # カバレッジ閾値%（未満でexit code 1）
-  --json                      # JSON出力
+  --cwd /path/to/project \   # project root (required)
+  --base main \               # base branch to diff against (default: main)
+  --cmd "npx jest" \          # test runner command (default: auto-detected)
+  --threshold 80 \            # fail if coverage is below this % (exit code 1)
+  --json                      # output results as JSON
 ```
 
-### 変更ファイルだけ確認（テスト実行なし）
+### List changed files without running tests
 
 ```bash
 diff-coverage diff --cwd /path/to/project
 ```
 
-### 出力例
+### Example output
 
-```
+```text
 === Diff Coverage Report ===
 
 Files changed: 3
@@ -68,53 +74,56 @@ Threshold: 80% → ❌ FAIL
    Uncovered lines: 12, 15, 18, 23, 34 ... (+8)
 ```
 
-## MCP サーバーとして使う（Claude Code連携）
+## MCP Server (Claude Code Integration)
 
-### 1. MCPサーバーを登録
+`diff-coverage` can run as an [MCP](https://modelcontextprotocol.io/) server, exposing coverage tools that Claude Code can call directly during a session.
+
+### 1. Register the MCP server
 
 ```bash
-# プロジェクトローカルに登録（.mcp.jsonに書き込まれる）
-claude mcp add diff-coverage --scope project -- node /path/to/diff-coverage/dist/mcp.js
+# Project-local (writes to .mcp.json)
+claude mcp add diff-coverage --scope project -- npx diff-coverage --mcp
 
-# またはユーザー全体に登録
-claude mcp add diff-coverage --scope user -- node /path/to/diff-coverage/dist/mcp.js
+# Or user-wide
+claude mcp add diff-coverage --scope user -- npx diff-coverage --mcp
 ```
 
-### 2. または `.mcp.json` に直接記述
+### 2. Or add it manually to `.mcp.json`
 
 ```json
 {
   "mcpServers": {
     "diff-coverage": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/absolute/path/to/diff-coverage/dist/mcp.js"]
+      "command": "npx",
+      "args": ["diff-coverage", "--mcp"]
     }
   }
 }
 ```
 
-### 3. 利用可能なMCPツール
+### 3. Available MCP tools
 
-| ツール名 | 説明 |
-|---|---|
-| `measure_diff_coverage` | 差分ファイルのカバレッジ計測（Jestを実行） |
-| `get_diff_files` | テスト実行なしで変更ファイルだけ確認 |
-| `get_uncovered_lines` | 特定ファイルの未カバー行を詳細表示 |
+| Tool | Description |
+| --- | --- |
+| `measure_diff_coverage` | Run tests and measure coverage for changed files |
+| `get_diff_files` | List changed files without running tests |
+| `get_uncovered_lines` | Show uncovered lines for a specific file in detail |
+| `detect_runner` | Detect whether the project uses Jest or Vitest |
 
-### 4. CLAUDE.md に指示を追加（推奨）
+### 4. Recommended: add instructions to `CLAUDE.md`
 
 ```markdown
-## テストカバレッジ
+## Test Coverage
 
-実装を完了したら必ず以下を実行してください：
+After completing any implementation, always run the following:
 
-1. `measure_diff_coverage` ツールでカバレッジを計測（cwd: /path/to/project）
-2. カバレッジが80%未満のファイルは `get_uncovered_lines` で未カバー行を確認
-3. 未カバー行に対してテストを追加してから実装完了とすること
+1. Use `measure_diff_coverage` to measure coverage (cwd: /path/to/project)
+2. For files below 80%, use `get_uncovered_lines` to identify missing coverage
+3. Add tests for uncovered lines before marking the task complete
 ```
 
-## CI での使い方
+## CI Usage
 
 ```yaml
 # .github/workflows/coverage.yml
@@ -126,14 +135,27 @@ claude mcp add diff-coverage --scope user -- node /path/to/diff-coverage/dist/mc
       --threshold 80
 ```
 
-## Jestの設定について
+## Jest / Vitest Configuration
 
-既存の `jest.config` をほぼ変更せず使えます。ただし `coverageDirectory` が `coverage/` を指していることを確認してください（Jestのデフォルト）。
+`diff-coverage` works with your existing config with no changes required. For Jest, make sure `coverageDirectory` points to `coverage/` (the default):
 
 ```js
 // jest.config.js
 module.exports = {
-  // coverageDirectory のデフォルトは "coverage" なので通常設定不要
-  coverageDirectory: "coverage",
+  coverageDirectory: "coverage", // default — usually no change needed
 }
 ```
+
+## Contributing
+
+```bash
+git clone https://github.com/ksugawara61/diff-coverage
+cd diff-coverage
+pnpm install
+pnpm build
+pnpm test
+```
+
+## License
+
+MIT
