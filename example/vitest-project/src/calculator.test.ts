@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { add, divide, multiply, subtract } from "./calculator.js";
+import { add, divide, isEven, multiply, subtract } from "./calculator.js";
 
 describe("calculator", () => {
   describe("add", () => {
@@ -32,6 +32,18 @@ describe("calculator", () => {
     });
     it("throws on division by zero", () => {
       expect(() => divide(1, 0)).toThrow("Division by zero");
+    });
+  });
+
+  describe("isEven", () => {
+    it.each([
+      [2, true],
+      [4, true],
+      [0, true],
+      [1, false],
+      [3, false],
+    ])("isEven(%s) returns %s", (n, expected) => {
+      expect(isEven(n)).toBe(expected);
     });
   });
 
