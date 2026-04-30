@@ -85,6 +85,7 @@ const diffFile = (overrides: Partial<DiffFile> = {}): DiffFile => ({
   additions: 0,
   deletions: 0,
   path: "src/foo.ts",
+  repoPath: "src/foo.ts",
   ...overrides,
 });
 
@@ -211,6 +212,27 @@ describe("buildPlannedComments", () => {
       path: "src/foo.ts",
       startLine: 50,
     });
+  });
+
+  it("uses repoPath as the comment path when cwd differs from repo root", () => {
+    const result = coverageResult({
+      files: [
+        fileCoverage({
+          path: "src/foo.ts",
+          uncoveredLines: [10],
+        }),
+      ],
+    });
+    const planned = buildPlannedComments(result, [
+      diffFile({
+        addedLines: [10],
+        path: "src/foo.ts",
+        repoPath: "packages/mylib/src/foo.ts",
+      }),
+    ]);
+
+    expect(planned).toHaveLength(1);
+    expect(planned[0].path).toBe("packages/mylib/src/foo.ts");
   });
 });
 

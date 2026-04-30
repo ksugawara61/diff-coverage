@@ -184,6 +184,23 @@ describe("getDiffFiles", () => {
     expect(files[0].addedLines).toEqual([]);
   });
 
+  it("sets repoPath to git-root-relative path and path to cwd-relative when cwd is a subdirectory", async () => {
+    mockGit(
+      new Error("no origin"),
+      { stdout: "/project" },
+      { stdout: "sub/src/foo.ts" },
+      { stdout: "2\t0\tsub/src/foo.ts" },
+      { stdout: "@@ -0,0 +1,2 @@\n+line1\n+line2" },
+    );
+
+    const files = await getDiffFiles("/project/sub", "main");
+
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe("src/foo.ts");
+    expect(files[0].repoPath).toBe("sub/src/foo.ts");
+    expect(files[0].addedLines).toEqual([1, 2]);
+  });
+
   it("handles multiple changed files", async () => {
     mockGit(
       new Error("no origin"),

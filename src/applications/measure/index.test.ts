@@ -52,6 +52,7 @@ const diffFile = (overrides: Partial<DiffFile> = {}): DiffFile => ({
   additions: 0,
   deletions: 0,
   path: "src/foo.ts",
+  repoPath: "src/foo.ts",
   ...overrides,
 });
 

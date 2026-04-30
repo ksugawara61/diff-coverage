@@ -38,6 +38,7 @@ const makeDiffFile = (
   additions: 0,
   deletions: 0,
   path,
+  repoPath: path,
   ...overrides,
 });
 

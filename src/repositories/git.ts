@@ -6,6 +6,7 @@ export type DiffFile = {
   additions: number;
   deletions: number;
   path: string;
+  repoPath: string;
 };
 
 const DEFAULT_EXTENSIONS = ["ts", "tsx", "js", "jsx", "mts", "cts"];
@@ -121,8 +122,8 @@ export const getDiffFiles = async (
   for (const filePath of allFiles) {
     const stat = statMap.get(filePath) ?? { additions: 0, deletions: 0 };
     const relPath = toRelCwd(filePath);
-    const addedLines = await getAddedLines(cwd, baseRef, filePath);
-    files.push({ addedLines, path: relPath, ...stat });
+    const addedLines = await getAddedLines(cwd, baseRef, relPath);
+    files.push({ addedLines, path: relPath, repoPath: filePath, ...stat });
   }
 
   return files;

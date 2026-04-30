@@ -164,22 +164,29 @@ export const buildPlannedComments = (
   result: DiffCoverageResult,
   diffFiles: DiffFile[],
 ): PlannedComment[] => {
-  const addedByPath = new Map(diffFiles.map((d) => [d.path, d.addedLines]));
+  const addedByPath = new Map(
+    diffFiles.map((d) => [
+      d.path,
+      { addedLines: d.addedLines, repoPath: d.repoPath },
+    ]),
+  );
   return result.files.flatMap((f) => {
-    const added = addedByPath.get(f.path) ?? [];
+    const info = addedByPath.get(f.path);
+    const added = info?.addedLines ?? [];
+    const repoPath = info?.repoPath ?? f.path;
     const ranges = groupUncoveredRanges(f.uncoveredLines, added);
     return ranges.map((r) => {
-      const marker = buildMarker(f.path, r.start, r.end);
+      const marker = buildMarker(repoPath, r.start, r.end);
       return {
         body: renderCommentBody({
           endLine: r.end,
           marker,
-          path: f.path,
+          path: repoPath,
           startLine: r.start,
         }),
         endLine: r.end,
         marker,
-        path: f.path,
+        path: repoPath,
         startLine: r.start,
       };
     });
