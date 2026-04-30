@@ -39,5 +39,9 @@
       "Bash(pnpm typecheck *)",
       "Bash(pnpm install *)"
     ]
+  },
+  "statusLine": {
+    "command": "jq -r '\"[\\(.model.display_name)] \\(.context_window.used_percentage // 0)% context\"'",
+    "type": "command"
   }
 }
