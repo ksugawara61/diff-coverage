@@ -19,12 +19,23 @@ import {
   updateReview,
   updateReviewComment,
 } from "../../repositories/github.js";
+import {
+  groupDiffFilesByPackage,
+  remapDiffFilePaths,
+} from "../../repositories/monorepo.js";
 import type {
   DiffCoverageResult,
   FileCoverage,
   RunOptions,
 } from "../measure/coverage.js";
-import { runMeasure } from "../measure/index.js";
+import {
+  computeThresholdMet,
+  type MeasureOptions,
+  type MonorepoMeasureOutcome,
+  measureMonorepo,
+  measureWithDiffFiles,
+  resolveMeasureDiffFiles,
+} from "../measure/index.js";
 
 type ReviewOptions = {
   base?: string;
@@ -283,6 +294,78 @@ export const formatReviewResult = (outcome: ReviewOutcome): string => {
 
 // ─── Orchestration ───────────────────────────────────────────────────────────
 
+const mergeCoverageResults = (
+  monorepoOutcome: MonorepoMeasureOutcome,
+): DiffCoverageResult => {
+  const { packages } = monorepoOutcome;
+  const files = packages.flatMap((p) => p.outcome.coverage.files);
+  const uncoveredFiles = packages.flatMap(
+    (p) => p.outcome.coverage.uncoveredFiles,
+  );
+  const pct = (covered: number, total: number) =>
+    total === 0 ? 0 : Math.round((covered / total) * 10000) / 100;
+  const totals = packages.reduce(
+    (acc, p) => {
+      const s = p.outcome.coverage.summary;
+      return {
+        branchCovered: acc.branchCovered + s.branches.covered,
+        branchTotal: acc.branchTotal + s.branches.total,
+        coveredFiles: acc.coveredFiles + s.coveredFiles,
+        fnCovered: acc.fnCovered + s.functions.covered,
+        fnTotal: acc.fnTotal + s.functions.total,
+        lineCovered: acc.lineCovered + s.lines.covered,
+        lineTotal: acc.lineTotal + s.lines.total,
+        stmtCovered: acc.stmtCovered + s.statements.covered,
+        stmtTotal: acc.stmtTotal + s.statements.total,
+        totalFiles: acc.totalFiles + s.totalFiles,
+      };
+    },
+    {
+      branchCovered: 0,
+      branchTotal: 0,
+      coveredFiles: 0,
+      fnCovered: 0,
+      fnTotal: 0,
+      lineCovered: 0,
+      lineTotal: 0,
+      stmtCovered: 0,
+      stmtTotal: 0,
+      totalFiles: 0,
+    },
+  );
+  const runner = packages[0]?.outcome.coverage.runner ?? "jest";
+  return {
+    files,
+    runner,
+    summary: {
+      branches: {
+        covered: totals.branchCovered,
+        pct: pct(totals.branchCovered, totals.branchTotal),
+        total: totals.branchTotal,
+      },
+      coveredFiles: totals.coveredFiles,
+      functions: {
+        covered: totals.fnCovered,
+        pct: pct(totals.fnCovered, totals.fnTotal),
+        total: totals.fnTotal,
+      },
+      lines: {
+        covered: totals.lineCovered,
+        pct: pct(totals.lineCovered, totals.lineTotal),
+        total: totals.lineTotal,
+      },
+      statements: {
+        covered: totals.stmtCovered,
+        pct: pct(totals.stmtCovered, totals.stmtTotal),
+        total: totals.stmtTotal,
+      },
+      totalFiles: totals.totalFiles,
+    },
+    timestamp: new Date().toISOString(),
+    uncoveredFiles,
+  };
+};
+
 const resolvePr = async (args: {
   branch: string;
   cwd: string;
@@ -308,6 +391,54 @@ const resolvePr = async (args: {
   return pr;
 };
 
+type MeasurementResult = {
+  coverage: DiffCoverageResult;
+  planned: PlannedComment[];
+  thresholdMet: boolean | null;
+};
+
+const runMeasurement = async (
+  opts: ReviewOptions,
+): Promise<MeasurementResult> => {
+  const baseOpts: MeasureOptions = {
+    base: opts.base,
+    cwd: opts.cwd,
+    exclude: opts.exclude,
+    extensions: opts.extensions,
+    runner: opts.runner,
+    testCommand: opts.testCommand,
+    threshold: opts.threshold,
+  };
+  const diffFiles = await resolveMeasureDiffFiles(baseOpts);
+  const packageMap = await groupDiffFilesByPackage(opts.cwd, diffFiles);
+
+  if (packageMap.size > 1) {
+    const monorepoOutcome = await measureMonorepo(baseOpts, packageMap);
+    const coverage = mergeCoverageResults(monorepoOutcome);
+    return {
+      coverage,
+      planned: monorepoOutcome.packages.flatMap((p) =>
+        buildPlannedComments(p.outcome.coverage, p.outcome.diffFiles),
+      ),
+      thresholdMet: computeThresholdMet(coverage, opts.threshold),
+    };
+  }
+
+  const entry = [...packageMap.entries()][0];
+  const pkgOpts =
+    entry && entry[0] !== opts.cwd ? { ...baseOpts, cwd: entry[0] } : baseOpts;
+  const pkgFiles =
+    entry && entry[0] !== opts.cwd
+      ? remapDiffFilePaths(entry[1], opts.cwd, entry[0])
+      : diffFiles;
+  const outcome = await measureWithDiffFiles(pkgOpts, pkgFiles);
+  return {
+    coverage: outcome.coverage,
+    planned: buildPlannedComments(outcome.coverage, pkgFiles),
+    thresholdMet: outcome.thresholdMet,
+  };
+};
+
 export const runReview = async (
   opts: ReviewOptions,
 ): Promise<ReviewOutcome> => {
@@ -322,16 +453,7 @@ export const runReview = async (
     owner,
     repo,
   });
-  const { coverage, diffFiles, thresholdMet } = await runMeasure({
-    base: opts.base,
-    cwd: opts.cwd,
-    exclude: opts.exclude,
-    extensions: opts.extensions,
-    runner: opts.runner,
-    testCommand: opts.testCommand,
-    threshold: opts.threshold,
-  });
-  const planned = buildPlannedComments(coverage, diffFiles);
+  const { coverage, planned, thresholdMet } = await runMeasurement(opts);
   const reviewBody = renderReviewBody(coverage, opts.threshold);
   const prInfo = { headSha: pr.headRefOid, number: pr.number, url: pr.url };
 
