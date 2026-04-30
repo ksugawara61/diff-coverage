@@ -14,7 +14,7 @@ import { registerReviewTool } from "./mcp/tools/review.js";
 import { registerUncoveredTool } from "./mcp/tools/uncovered.js";
 
 const name = "diff-coverage";
-const version = "0.1.2";
+const version = "0.1.3";
 
 if (process.argv.includes("--mcp")) {
   const server = new McpServer({ name, version });
