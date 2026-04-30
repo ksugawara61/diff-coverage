@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { registerDiffCommand } from "./presentations/commands/diff.js";
 import { registerMeasureCommand } from "./presentations/commands/measure.js";
 import { registerReviewCommand } from "./presentations/commands/review.js";
 
@@ -15,7 +14,6 @@ program
   .version(version);
 
 registerMeasureCommand(program);
-registerDiffCommand(program);
 registerReviewCommand(program);
 
 program.parse();
