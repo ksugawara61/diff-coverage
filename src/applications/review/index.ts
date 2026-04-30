@@ -200,7 +200,7 @@ export const buildPlannedComments = (
 
 type CommentToUpdate = { comment: PlannedComment; id: number };
 
-export type CategorizedComments = {
+type CategorizedComments = {
   skipped: number;
   toCreate: PlannedComment[];
   toUpdate: CommentToUpdate[];

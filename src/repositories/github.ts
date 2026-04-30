@@ -187,7 +187,7 @@ export const listReviewComments = async (args: {
     .map((line) => JSON.parse(line) as GitHubReviewComment);
 };
 
-export type GitHubReview = {
+type GitHubReview = {
   body: string;
   html_url: string;
   id: number;
