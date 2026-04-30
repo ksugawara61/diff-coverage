@@ -3,13 +3,12 @@
     "diff-coverage": "./dist/presentations/cli.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@vitest/coverage-v8": "^4.1.5",
     "commander": "^13.0.0",
     "execa": "^9.5.2",
     "zod": "^4.3.6"
   },
-  "description": "Git差分に対するJestテストカバレッジを計測するCLI & MCPサーバー",
+  "description": "Git差分に対するJestテストカバレッジを計測するCLIツール",
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
     "@types/node": "^22.0.0",
