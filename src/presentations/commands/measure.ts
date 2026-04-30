@@ -169,15 +169,6 @@ const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   }
 };
 
-const measureAction = async (rawOpts: unknown): Promise<void> => {
-  const parsed = MeasureCLIOptsSchema.safeParse(rawOpts);
-  if (!parsed.success) {
-    console.error(parsed.error.message);
-    process.exit(1);
-  }
-  await runMeasureCommand(parsed.data);
-};
-
 export const registerMeasureCommand = (program: Command): void => {
   program
     .command("measure", { isDefault: true })
@@ -209,5 +200,12 @@ export const registerMeasureCommand = (program: Command): void => {
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
     )
-    .action(measureAction);
+    .action(async (rawOpts) => {
+      const parsed = MeasureCLIOptsSchema.safeParse(rawOpts);
+      if (!parsed.success) {
+        console.error(parsed.error.message);
+        process.exit(1);
+      }
+      await runMeasureCommand(parsed.data);
+    });
 };

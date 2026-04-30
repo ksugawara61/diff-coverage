@@ -20,15 +20,6 @@ const runDiffCommand = async (opts: DiffCliOptions): Promise<void> => {
   console.log(formatDiffFiles(files));
 };
 
-const diffAction = async (rawOpts: unknown): Promise<void> => {
-  const parsed = DiffCLIOptsSchema.safeParse(rawOpts);
-  if (!parsed.success) {
-    console.error(parsed.error.message);
-    process.exit(1);
-  }
-  await runDiffCommand(parsed.data);
-};
-
 export const registerDiffCommand = (program: Command): void => {
   program
     .command("diff")
@@ -47,5 +38,12 @@ export const registerDiffCommand = (program: Command): void => {
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
     )
-    .action(diffAction);
+    .action(async (rawOpts) => {
+      const parsed = DiffCLIOptsSchema.safeParse(rawOpts);
+      if (!parsed.success) {
+        console.error(parsed.error.message);
+        process.exit(1);
+      }
+      await runDiffCommand(parsed.data);
+    });
 };

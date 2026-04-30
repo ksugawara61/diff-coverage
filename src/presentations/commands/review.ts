@@ -55,15 +55,6 @@ const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
   }
 };
 
-const reviewAction = async (rawOpts: unknown): Promise<void> => {
-  const parsed = ReviewCLIOptsSchema.safeParse(rawOpts);
-  if (!parsed.success) {
-    console.error(parsed.error.message);
-    process.exit(1);
-  }
-  await runReviewCommand(parsed.data);
-};
-
 export const registerReviewCommand = (program: Command): void => {
   program
     .command("review")
@@ -99,5 +90,12 @@ export const registerReviewCommand = (program: Command): void => {
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files",
     )
-    .action(reviewAction);
+    .action(async (rawOpts) => {
+      const parsed = ReviewCLIOptsSchema.safeParse(rawOpts);
+      if (!parsed.success) {
+        console.error(parsed.error.message);
+        process.exit(1);
+      }
+      await runReviewCommand(parsed.data);
+    });
 };
