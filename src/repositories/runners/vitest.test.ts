@@ -100,8 +100,11 @@ describe("runVitest", () => {
     },
     {
       expectedBin: "pnpm",
-      expectedFirstArg: "vitest",
-      makeOptions: () => ({ cwd: tmpDir, testCommand: "pnpm vitest" }),
+      expectedFirstArg: "exec",
+      makeOptions: () => ({
+        cwd: tmpDir,
+        testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+      }),
       name: "with custom testCommand",
     },
   ])("invokes vitest $name", async ({
@@ -115,6 +118,18 @@ describe("runVitest", () => {
     const [bin, args] = mockExeca.mock.calls[0] as [string, string[]];
     expect(bin).toBe(expectedBin);
     expect(args[0]).toBe(expectedFirstArg);
+  });
+
+  it("does not duplicate 'run' when testCommand already contains it", async () => {
+    await runVitest(
+      {
+        cwd: tmpDir,
+        testCommand: "pnpm exec vitest run --config .vitest/config.ts",
+      },
+      ["src/foo.ts"],
+    );
+    const args = getInvocationArgs();
+    expect(args.filter((a) => a === "run")).toHaveLength(1);
   });
 
   describe("CLI arguments", () => {

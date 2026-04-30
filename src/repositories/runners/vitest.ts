@@ -77,7 +77,6 @@ export async function runVitest(
     const includeArgs = diffFilePaths.flatMap((p) => ["--coverage.include", p]);
 
     const vitestArgs = [
-      "run",
       "--coverage",
       "--coverage.enabled=true",
       `--coverage.provider=${provider}`,
@@ -88,7 +87,7 @@ export async function runVitest(
       "--passWithNoTests",
     ];
 
-    const cmd = testCommand ?? "npx vitest";
+    const cmd = testCommand ?? "npx vitest run";
     const [bin, ...baseArgs] = cmd.split(" ");
 
     await execa(bin, [...baseArgs, ...vitestArgs], {
