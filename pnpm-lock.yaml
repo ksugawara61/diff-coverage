@@ -11,6 +11,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.3.6)
+      '@vitest/coverage-v8':
+        specifier: ^4.1.5
+        version: 4.1.5(vitest@4.1.5)
       commander:
         specifier: ^13.0.0
         version: 13.1.0
@@ -27,9 +30,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
-      '@vitest/coverage-v8':
-        specifier: ^4.1.5
-        version: 4.1.5(vitest@4.1.5)
       knip:
         specifier: ^6.7.0
         version: 6.7.0(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)
