@@ -1,6 +1,5 @@
 import { relative, resolve } from "node:path";
 import type { Command } from "commander";
-import type { z } from "zod";
 import { resolveRunner } from "../../applications/detect/index.js";
 import { formatDiffFiles } from "../../applications/diff/index.js";
 import {
@@ -21,9 +20,7 @@ import {
   remapDiffFilePaths,
 } from "../../repositories/monorepo.js";
 import { parseCsv, parseCsvOption } from "../shared/csv.js";
-import { MeasureCLIOptsSchema } from "./measure-schema.js";
-
-type MeasureCliOptions = z.infer<typeof MeasureCLIOptsSchema>;
+import { MeasureCLIOptsSchema, type MeasureCliOptions } from "./schema.js";
 
 const printMonorepoResult = (
   outcome: MonorepoMeasureOutcome,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { registerMeasureCommand } from "./presentations/commands/measure.js";
-import { registerReviewCommand } from "./presentations/commands/review.js";
+import { registerMeasureCommand } from "./presentations/measure/index.js";
+import { registerReviewCommand } from "./presentations/review/index.js";
 
 const name = "diff-coverage";
 const version = "0.1.4";

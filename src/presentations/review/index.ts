@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
 import type { Command } from "commander";
-import type { z } from "zod";
 import {
   formatReviewResult,
   NoPullRequestError,
@@ -11,9 +10,7 @@ import {
   GhNotInstalledError,
 } from "../../repositories/github.js";
 import { parseCsv, parseCsvOption } from "../shared/csv.js";
-import { ReviewCLIOptsSchema } from "./review-schema.js";
-
-type ReviewCliOptions = z.infer<typeof ReviewCLIOptsSchema>;
+import { ReviewCLIOptsSchema, type ReviewCliOptions } from "./schema.js";
 
 const handleReviewError = (err: unknown): never => {
   if (err instanceof GhNotInstalledError) {
