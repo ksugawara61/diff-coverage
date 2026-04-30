@@ -187,6 +187,101 @@ export const listReviewComments = async (args: {
     .map((line) => JSON.parse(line) as GitHubReviewComment);
 };
 
+export type GitHubReview = {
+  body: string;
+  html_url: string;
+  id: number;
+  state: string;
+};
+
+export const listPullRequestReviews = async (args: {
+  cwd: string;
+  owner: string;
+  pullNumber: number;
+  repo: string;
+}): Promise<GitHubReview[]> => {
+  const { stdout } = await runGh(
+    [
+      "api",
+      "--paginate",
+      `repos/${args.owner}/${args.repo}/pulls/${args.pullNumber}/reviews`,
+      "--jq",
+      ".[] | {id, body, html_url, state}",
+    ],
+    { cwd: args.cwd },
+  );
+  return stdout
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => JSON.parse(line) as GitHubReview);
+};
+
+export const updateReview = async (args: {
+  body: string;
+  cwd: string;
+  owner: string;
+  pullNumber: number;
+  repo: string;
+  reviewId: number;
+}): Promise<{ html_url: string; id: number }> => {
+  const { stdout } = await runGh(
+    [
+      "api",
+      "-X",
+      "PUT",
+      `repos/${args.owner}/${args.repo}/pulls/${args.pullNumber}/reviews/${args.reviewId}`,
+      "--input",
+      "-",
+    ],
+    { cwd: args.cwd, input: JSON.stringify({ body: args.body }) },
+  );
+  return JSON.parse(stdout) as { html_url: string; id: number };
+};
+
+export const updateReviewComment = async (args: {
+  body: string;
+  commentId: number;
+  cwd: string;
+  owner: string;
+  repo: string;
+}): Promise<void> => {
+  await runGh(
+    [
+      "api",
+      "-X",
+      "PATCH",
+      `repos/${args.owner}/${args.repo}/pulls/comments/${args.commentId}`,
+      "--input",
+      "-",
+    ],
+    { cwd: args.cwd, input: JSON.stringify({ body: args.body }) },
+  );
+};
+
+export const createReviewCommentSingle = async (args: {
+  comment: ReviewCommentInput;
+  commitId: string;
+  cwd: string;
+  owner: string;
+  pullNumber: number;
+  repo: string;
+}): Promise<void> => {
+  await runGh(
+    [
+      "api",
+      "-X",
+      "POST",
+      `repos/${args.owner}/${args.repo}/pulls/${args.pullNumber}/comments`,
+      "--input",
+      "-",
+    ],
+    {
+      cwd: args.cwd,
+      input: JSON.stringify({ ...args.comment, commit_id: args.commitId }),
+    },
+  );
+};
+
 export const createReview = async (
   params: CreateReviewParams,
 ): Promise<{ html_url: string; id: number }> => {

@@ -6,11 +6,15 @@ vi.mock("../../repositories/git.js", () => ({
 }));
 vi.mock("../../repositories/github.js", () => ({
   createReview: vi.fn(),
+  createReviewCommentSingle: vi.fn(),
   ensureGhAuthenticated: vi.fn(),
   findPullRequestByBranch: vi.fn(),
   getPullRequest: vi.fn(),
+  listPullRequestReviews: vi.fn().mockResolvedValue([]),
   listReviewComments: vi.fn().mockResolvedValue([]),
   parseRepoSlug: vi.fn().mockReturnValue({ owner: "owner", repo: "repo" }),
+  updateReview: vi.fn(),
+  updateReviewComment: vi.fn(),
 }));
 vi.mock("../measure/index.js", () => ({
   runMeasure: vi.fn(),
@@ -23,17 +27,21 @@ import {
 } from "../../repositories/git.js";
 import {
   createReview,
+  createReviewCommentSingle,
   ensureGhAuthenticated,
   findPullRequestByBranch,
   type GitHubReviewComment,
+  listPullRequestReviews,
   listReviewComments,
+  updateReview,
+  updateReviewComment,
 } from "../../repositories/github.js";
 import type { DiffCoverageResult, FileCoverage } from "../measure/coverage.js";
 import { runMeasure } from "../measure/index.js";
 import {
   buildMarker,
   buildPlannedComments,
-  filterAlreadyPosted,
+  categorizeComments,
   formatReviewResult,
   groupUncoveredRanges,
   NoPullRequestError,
@@ -49,7 +57,11 @@ const mockGetRemoteOriginUrl = vi.mocked(getRemoteOriginUrl);
 const mockEnsureGhAuthenticated = vi.mocked(ensureGhAuthenticated);
 const mockFindPullRequestByBranch = vi.mocked(findPullRequestByBranch);
 const mockCreateReview = vi.mocked(createReview);
+const mockCreateReviewCommentSingle = vi.mocked(createReviewCommentSingle);
+const mockListPullRequestReviews = vi.mocked(listPullRequestReviews);
 const mockListReviewComments = vi.mocked(listReviewComments);
+const mockUpdateReview = vi.mocked(updateReview);
+const mockUpdateReviewComment = vi.mocked(updateReviewComment);
 const mockRunMeasure = vi.mocked(runMeasure);
 
 const fileCoverage = (overrides: Partial<FileCoverage> = {}): FileCoverage => ({
@@ -106,10 +118,17 @@ beforeEach(() => {
   mockGetRemoteOriginUrl.mockResolvedValue("git@github.com:owner/repo.git");
   mockFindPullRequestByBranch.mockResolvedValue(makePr());
   mockListReviewComments.mockResolvedValue([]);
+  mockListPullRequestReviews.mockResolvedValue([]);
   mockCreateReview.mockResolvedValue({
     html_url: "https://x/review/1",
     id: 999,
   });
+  mockUpdateReview.mockResolvedValue({
+    html_url: "https://x/review/1",
+    id: 999,
+  });
+  mockUpdateReviewComment.mockResolvedValue(undefined);
+  mockCreateReviewCommentSingle.mockResolvedValue(undefined);
 });
 
 describe("groupUncoveredRanges", () => {
@@ -236,17 +255,19 @@ describe("buildPlannedComments", () => {
   });
 });
 
-describe("filterAlreadyPosted", () => {
+describe("categorizeComments", () => {
+  const body =
+    "<!-- diff-coverage:auto:abc1234 -->\n**Uncovered by tests** (line 10)";
   const planned: PlannedComment[] = [
     {
-      body: "ignored",
+      body,
       endLine: 12,
       marker: "<!-- diff-coverage:auto:abc1234 -->",
       path: "src/a.ts",
       startLine: 10,
     },
     {
-      body: "ignored",
+      body: "<!-- diff-coverage:auto:def5678 -->\n**Uncovered by tests** (line 5)",
       endLine: 5,
       marker: "<!-- diff-coverage:auto:def5678 -->",
       path: "src/b.ts",
@@ -254,31 +275,45 @@ describe("filterAlreadyPosted", () => {
     },
   ];
 
-  const existingComment = (body: string): GitHubReviewComment => ({
-    body,
-    id: 1,
+  const existingComment = (
+    commentBody: string,
+    id = 1,
+  ): GitHubReviewComment => ({
+    body: commentBody,
+    id,
     line: null,
     path: "src/a.ts",
     start_line: null,
   });
 
-  it("skips planned comments whose marker already appears in existing comments", () => {
-    const { kept, skipped } = filterAlreadyPosted(planned, [
-      existingComment(
-        "Earlier text\n<!-- diff-coverage:auto:abc1234 -->\nmore",
-      ),
-    ]);
-    expect(skipped).toBe(1);
-    expect(kept).toHaveLength(1);
-    expect(kept[0].marker).toContain("def5678");
-  });
-
-  it("keeps everything when no markers match", () => {
-    const { kept, skipped } = filterAlreadyPosted(planned, [
+  it("puts new comments in toCreate when no marker matches", () => {
+    const { toCreate, toUpdate, skipped } = categorizeComments(planned, [
       existingComment("unrelated comment"),
     ]);
+    expect(toCreate).toHaveLength(2);
+    expect(toUpdate).toHaveLength(0);
     expect(skipped).toBe(0);
-    expect(kept).toHaveLength(2);
+  });
+
+  it("skips comments whose marker and body are identical", () => {
+    const { toCreate, toUpdate, skipped } = categorizeComments(planned, [
+      existingComment(body, 1),
+    ]);
+    expect(skipped).toBe(1);
+    expect(toCreate).toHaveLength(1);
+    expect(toCreate[0].marker).toContain("def5678");
+    expect(toUpdate).toHaveLength(0);
+  });
+
+  it("puts comments in toUpdate when marker matches but body differs", () => {
+    const { toCreate, toUpdate, skipped } = categorizeComments(planned, [
+      existingComment("<!-- diff-coverage:auto:abc1234 -->\nOld body", 42),
+    ]);
+    expect(toUpdate).toHaveLength(1);
+    expect(toUpdate[0].id).toBe(42);
+    expect(toUpdate[0].comment.marker).toContain("abc1234");
+    expect(toCreate).toHaveLength(1);
+    expect(skipped).toBe(0);
   });
 });
 
@@ -308,6 +343,7 @@ describe("formatReviewResult", () => {
     pr: { headSha: "sha", number: 1, url: "https://x/pr/1" },
     skippedExisting: 0,
     thresholdMet: null,
+    updatedExisting: 0,
     ...overrides,
   });
 
@@ -405,7 +441,7 @@ describe("runReview", () => {
     expect(mockCreateReview).not.toHaveBeenCalled();
   });
 
-  it("skips comments whose marker already exists on the PR", async () => {
+  it("skips comments whose marker and body are already identical on the PR", async () => {
     mountSuccessfulPipeline();
     const planned = buildPlannedComments(
       coverageResult({
@@ -420,7 +456,7 @@ describe("runReview", () => {
     );
     mockListReviewComments.mockResolvedValueOnce([
       {
-        body: `existing ${planned[0].marker}`,
+        body: planned[0].body,
         id: 1,
         line: 12,
         path: "src/foo.ts",
@@ -431,6 +467,58 @@ describe("runReview", () => {
     const outcome = await runReview({ cwd: "/repo" });
     expect(outcome.skippedExisting).toBe(1);
     expect(outcome.posted).toHaveLength(0);
+    expect(outcome.updatedExisting).toBe(0);
+  });
+
+  it("updates comments whose marker matches but body has changed", async () => {
+    mountSuccessfulPipeline();
+    const planned = buildPlannedComments(
+      coverageResult({
+        files: [
+          fileCoverage({
+            path: "src/foo.ts",
+            uncoveredLines: [10, 11, 12],
+          }),
+        ],
+      }),
+      [diffFile({ addedLines: [10, 11, 12], path: "src/foo.ts" })],
+    );
+    mockListReviewComments.mockResolvedValueOnce([
+      {
+        body: `${planned[0].marker}\nOld body`,
+        id: 77,
+        line: 12,
+        path: "src/foo.ts",
+        start_line: 10,
+      },
+    ]);
+
+    const outcome = await runReview({ cwd: "/repo" });
+    expect(outcome.updatedExisting).toBe(1);
+    expect(outcome.posted).toHaveLength(0);
+    expect(mockUpdateReviewComment).toHaveBeenCalledWith(
+      expect.objectContaining({ commentId: 77 }),
+    );
+  });
+
+  it("updates existing review body and posts standalone comments when summary review exists", async () => {
+    mountSuccessfulPipeline();
+    mockListPullRequestReviews.mockResolvedValueOnce([
+      {
+        body: "## Diff coverage report\n\n<!-- diff-coverage:auto:summary -->",
+        html_url: "https://x/review/1",
+        id: 55,
+        state: "COMMENTED",
+      },
+    ]);
+
+    const outcome = await runReview({ cwd: "/repo" });
+    expect(mockUpdateReview).toHaveBeenCalledWith(
+      expect.objectContaining({ reviewId: 55 }),
+    );
+    expect(mockCreateReview).not.toHaveBeenCalled();
+    expect(mockCreateReviewCommentSingle).toHaveBeenCalledTimes(1);
+    expect(outcome.postedReviewUrl).toBe("https://x/review/1");
   });
 
   it("computes thresholdMet from runMeasure result", async () => {

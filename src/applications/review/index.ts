@@ -6,14 +6,18 @@ import {
 } from "../../repositories/git.js";
 import {
   createReview,
+  createReviewCommentSingle,
   ensureGhAuthenticated,
   findPullRequestByBranch,
   type GitHubPullRequest,
   type GitHubReviewComment,
   getPullRequest,
+  listPullRequestReviews,
   listReviewComments,
   parseRepoSlug,
   type ReviewCommentInput,
+  updateReview,
+  updateReviewComment,
 } from "../../repositories/github.js";
 import type {
   DiffCoverageResult,
@@ -52,6 +56,7 @@ export type ReviewOutcome = {
   pr: { headSha: string; number: number; url: string };
   skippedExisting: number;
   thresholdMet: boolean | null;
+  updatedExisting: number;
 };
 
 export class NoPullRequestError extends Error {
@@ -193,17 +198,42 @@ export const buildPlannedComments = (
   });
 };
 
-export const filterAlreadyPosted = (
+type CommentToUpdate = { comment: PlannedComment; id: number };
+
+export type CategorizedComments = {
+  skipped: number;
+  toCreate: PlannedComment[];
+  toUpdate: CommentToUpdate[];
+};
+
+export const categorizeComments = (
   planned: PlannedComment[],
   existing: GitHubReviewComment[],
-): { kept: PlannedComment[]; skipped: number } => {
-  const existingMarkers = new Set(
+): CategorizedComments => {
+  const existingByMarker = new Map(
     existing
-      .map((c) => c.body.match(/<!-- diff-coverage:auto:[a-f0-9]{7} -->/)?.[0])
-      .filter((m): m is string => m !== undefined),
+      .map((c) => {
+        const m = c.body.match(/<!-- diff-coverage:auto:[a-f0-9]{7} -->/)?.[0];
+        return m ? ([m, c] as [string, GitHubReviewComment]) : null;
+      })
+      .filter(
+        (entry): entry is [string, GitHubReviewComment] => entry !== null,
+      ),
   );
-  const kept = planned.filter((p) => !existingMarkers.has(p.marker));
-  return { kept, skipped: planned.length - kept.length };
+  return planned.reduce<CategorizedComments>(
+    (acc, p) => {
+      const found = existingByMarker.get(p.marker);
+      if (!found) {
+        acc.toCreate.push(p);
+      } else if (found.body !== p.body) {
+        acc.toUpdate.push({ comment: p, id: found.id });
+      } else {
+        acc.skipped++;
+      }
+      return acc;
+    },
+    { skipped: 0, toCreate: [], toUpdate: [] },
+  );
 };
 
 const toReviewCommentInput = (p: PlannedComment): ReviewCommentInput =>
@@ -244,6 +274,7 @@ export const formatReviewResult = (outcome: ReviewOutcome): string => {
     "",
     `Planned inline comments: ${outcome.planned.length}`,
     `Skipped (already posted): ${outcome.skippedExisting}`,
+    `Updated (body changed): ${outcome.updatedExisting}`,
     ...renderPostedSection(outcome),
   ];
   return sections.filter((s): s is string => s !== null).join("\n");
@@ -274,26 +305,6 @@ const resolvePr = async (args: {
   });
   if (!pr) throw new NoPullRequestError(args.branch);
   return pr;
-};
-
-const postReview = async (args: {
-  cwd: string;
-  kept: PlannedComment[];
-  owner: string;
-  pr: GitHubPullRequest;
-  repo: string;
-  reviewBody: string;
-}): Promise<string> => {
-  const result = await createReview({
-    body: args.reviewBody,
-    comments: args.kept.map(toReviewCommentInput),
-    commitId: args.pr.headRefOid,
-    cwd: args.cwd,
-    owner: args.owner,
-    pullNumber: args.pr.number,
-    repo: args.repo,
-  });
-  return result.html_url;
 };
 
 export const runReview = async (
@@ -331,34 +342,87 @@ export const runReview = async (
       pr: prInfo,
       skippedExisting: 0,
       thresholdMet,
+      updatedExisting: 0,
     };
   }
 
-  const existing = await listReviewComments({
-    cwd: opts.cwd,
-    owner,
-    pullNumber: pr.number,
-    repo,
-  });
-  const { kept, skipped } = filterAlreadyPosted(planned, existing);
+  const [existingComments, existingReviews] = await Promise.all([
+    listReviewComments({ cwd: opts.cwd, owner, pullNumber: pr.number, repo }),
+    listPullRequestReviews({
+      cwd: opts.cwd,
+      owner,
+      pullNumber: pr.number,
+      repo,
+    }),
+  ]);
 
-  const postedReviewUrl = await postReview({
-    cwd: opts.cwd,
-    kept,
-    owner,
-    pr,
-    repo,
-    reviewBody,
-  });
+  const { toCreate, toUpdate, skipped } = categorizeComments(
+    planned,
+    existingComments,
+  );
+
+  const summaryReview = existingReviews
+    .filter((r) => r.body.includes("<!-- diff-coverage:auto:summary -->"))
+    .at(-1);
+
+  await Promise.all(
+    toUpdate.map(({ comment, id }) =>
+      updateReviewComment({
+        body: comment.body,
+        commentId: id,
+        cwd: opts.cwd,
+        owner,
+        repo,
+      }),
+    ),
+  );
+
+  let postedReviewUrl: string;
+
+  if (summaryReview) {
+    const updated = await updateReview({
+      body: reviewBody,
+      cwd: opts.cwd,
+      owner,
+      pullNumber: pr.number,
+      repo,
+      reviewId: summaryReview.id,
+    });
+    postedReviewUrl = updated.html_url;
+    await Promise.all(
+      toCreate.map((p) =>
+        createReviewCommentSingle({
+          comment: toReviewCommentInput(p),
+          commitId: pr.headRefOid,
+          cwd: opts.cwd,
+          owner,
+          pullNumber: pr.number,
+          repo,
+        }),
+      ),
+    );
+  } else {
+    const result = await createReview({
+      body: reviewBody,
+      comments: toCreate.map(toReviewCommentInput),
+      commitId: pr.headRefOid,
+      cwd: opts.cwd,
+      owner,
+      pullNumber: pr.number,
+      repo,
+    });
+    postedReviewUrl = result.html_url;
+  }
 
   return {
     coverage,
     dryRun: false,
     planned,
-    posted: kept,
+    posted: toCreate,
     postedReviewUrl,
     pr: prInfo,
     skippedExisting: skipped,
     thresholdMet,
+    updatedExisting: toUpdate.length,
   };
 };

@@ -7,12 +7,16 @@ vi.mock("execa", () => ({
 import { execa } from "execa";
 import {
   createReview,
+  createReviewCommentSingle,
   ensureGhAuthenticated,
   findPullRequestByBranch,
   GhNotAuthenticatedError,
   getPullRequest,
+  listPullRequestReviews,
   listReviewComments,
   parseRepoSlug,
+  updateReview,
+  updateReviewComment,
 } from "./github.js";
 
 const mockExeca = vi.mocked(execa);
@@ -225,6 +229,103 @@ describe("createReview", () => {
     expect(payload.comments[0]).toMatchObject({
       line: 12,
       path: "src/foo.ts",
+    });
+  });
+});
+
+describe("listPullRequestReviews", () => {
+  it("parses newline-delimited JSON from gh --paginate --jq", async () => {
+    const lines = [
+      JSON.stringify({
+        body: "review body",
+        html_url: "https://x/review/1",
+        id: 10,
+        state: "COMMENTED",
+      }),
+      "",
+    ].join("\n");
+    stubOk(lines);
+
+    const reviews = await listPullRequestReviews({
+      cwd: "/repo",
+      owner: "o",
+      pullNumber: 1,
+      repo: "r",
+    });
+
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0].id).toBe(10);
+    expect(reviews[0].state).toBe("COMMENTED");
+  });
+});
+
+describe("updateReview", () => {
+  it("sends PUT to reviews endpoint with body payload", async () => {
+    stubOk(JSON.stringify({ html_url: "https://x/review/5", id: 5 }));
+
+    const result = await updateReview({
+      body: "updated summary",
+      cwd: "/repo",
+      owner: "o",
+      pullNumber: 3,
+      repo: "r",
+      reviewId: 5,
+    });
+
+    expect(result.id).toBe(5);
+    const call = mockExeca.mock.calls[0];
+    expect(call[1]).toContain("repos/o/r/pulls/3/reviews/5");
+    expect(call[1]).toContain("PUT");
+    const opts = call[2] as { input?: string };
+    expect(JSON.parse(opts.input ?? "{}")).toMatchObject({
+      body: "updated summary",
+    });
+  });
+});
+
+describe("updateReviewComment", () => {
+  it("sends PATCH to pulls/comments endpoint with body payload", async () => {
+    stubOk("{}");
+
+    await updateReviewComment({
+      body: "new body",
+      commentId: 99,
+      cwd: "/repo",
+      owner: "o",
+      repo: "r",
+    });
+
+    const call = mockExeca.mock.calls[0];
+    expect(call[1]).toContain("repos/o/r/pulls/comments/99");
+    expect(call[1]).toContain("PATCH");
+    const opts = call[2] as { input?: string };
+    expect(JSON.parse(opts.input ?? "{}")).toMatchObject({ body: "new body" });
+  });
+});
+
+describe("createReviewCommentSingle", () => {
+  it("sends POST to pulls/comments with commit_id and comment fields", async () => {
+    stubOk("{}");
+
+    await createReviewCommentSingle({
+      comment: { body: "uncovered", line: 5, path: "src/a.ts", side: "RIGHT" },
+      commitId: "abc123",
+      cwd: "/repo",
+      owner: "o",
+      pullNumber: 7,
+      repo: "r",
+    });
+
+    const call = mockExeca.mock.calls[0];
+    expect(call[1]).toContain("repos/o/r/pulls/7/comments");
+    expect(call[1]).toContain("POST");
+    const opts = call[2] as { input?: string };
+    const payload = JSON.parse(opts.input ?? "{}") as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      body: "uncovered",
+      commit_id: "abc123",
+      line: 5,
+      path: "src/a.ts",
     });
   });
 });
