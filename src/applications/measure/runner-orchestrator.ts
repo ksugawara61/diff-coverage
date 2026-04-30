@@ -17,9 +17,11 @@ import {
 const resolveRunner = async (
   options: RunOptions,
 ): Promise<"jest" | "vitest"> => {
-  const { runner = "auto", cwd } = options;
-  if (runner === "auto") return detectRunner(cwd);
-  return runner;
+  const { runner = "auto", cwd, testCommand } = options;
+  if (runner !== "auto") return runner;
+  if (testCommand?.includes("vitest")) return "vitest";
+  if (testCommand?.includes("jest")) return "jest";
+  return detectRunner(cwd);
 };
 
 export const runCoverage = async (

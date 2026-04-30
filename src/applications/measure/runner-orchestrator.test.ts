@@ -82,6 +82,39 @@ describe("runCoverage", () => {
     expect(mockDetectRunner).toHaveBeenCalledWith(CWD);
   });
 
+  it("infers vitest from testCommand without calling detectRunner", async () => {
+    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    await runCoverage(
+      {
+        cwd: CWD,
+        testCommand: "pnpm exec vitest related --config .vitest/config.ts",
+      },
+      [makeDiffFile("src/foo.ts")],
+    );
+    expect(mockDetectRunner).not.toHaveBeenCalled();
+    expect(mockRunVitest).toHaveBeenCalled();
+    expect(mockRunJest).not.toHaveBeenCalled();
+  });
+
+  it("infers jest from testCommand without calling detectRunner", async () => {
+    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    await runCoverage(
+      { cwd: CWD, testCommand: "pnpm exec jest --config jest.config.ts" },
+      [makeDiffFile("src/foo.ts")],
+    );
+    expect(mockDetectRunner).not.toHaveBeenCalled();
+    expect(mockRunJest).toHaveBeenCalled();
+    expect(mockRunVitest).not.toHaveBeenCalled();
+  });
+
+  it("falls back to detectRunner when testCommand has no known runner keyword", async () => {
+    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    await runCoverage({ cwd: CWD, testCommand: "pnpm test" }, [
+      makeDiffFile("src/foo.ts"),
+    ]);
+    expect(mockDetectRunner).toHaveBeenCalledWith(CWD);
+  });
+
   it("invokes jest runner when runner is jest", async () => {
     mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
     await runCoverage({ cwd: CWD, runner: "jest" }, [

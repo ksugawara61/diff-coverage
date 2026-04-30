@@ -16,7 +16,10 @@ import {
   resolveMeasureDiffFiles,
 } from "../../../applications/measure/index.js";
 import type { DiffFile } from "../../../repositories/git.js";
-import { groupDiffFilesByPackage } from "../../../repositories/monorepo.js";
+import {
+  groupDiffFilesByPackage,
+  remapDiffFilePaths,
+} from "../../../repositories/monorepo.js";
 import { parseCsv, parseCsvOption } from "../csv.js";
 import { MeasureCLIOptsSchema } from "./measure-schema.js";
 
@@ -86,7 +89,11 @@ const runSinglePackageMode = async (
   baseOpts: MeasureOptions,
   diffFiles: DiffFile[],
 ): Promise<void> => {
-  const runner = await resolveRunner(baseOpts.cwd, opts.runner);
+  const runner = await resolveRunner(
+    baseOpts.cwd,
+    opts.runner,
+    baseOpts.testCommand,
+  );
   console.error(
     `📊 Measuring diff coverage against ${opts.base ?? "merge-base of HEAD and main"} (runner: ${runner})...`,
   );
@@ -97,6 +104,23 @@ const runSinglePackageMode = async (
     diffFiles,
   );
   printSingleResult(outcome, opts.threshold, opts.json);
+};
+
+const resolveSinglePackageArgs = (
+  cwd: string,
+  baseOpts: MeasureOptions,
+  diffFiles: DiffFile[],
+  packageMap: Map<string, DiffFile[]>,
+): { pkgOpts: MeasureOptions; pkgFiles: DiffFile[] } => {
+  const entry = [...packageMap.entries()][0];
+  if (entry && entry[0] !== cwd) {
+    const [pkgCwd, pkgFiles] = entry;
+    return {
+      pkgFiles: remapDiffFilePaths(pkgFiles, cwd, pkgCwd),
+      pkgOpts: { ...baseOpts, cwd: pkgCwd },
+    };
+  }
+  return { pkgFiles: diffFiles, pkgOpts: baseOpts };
 };
 
 const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
@@ -131,7 +155,13 @@ const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
     if (packageMap.size > 1) {
       await runMonorepoMode(opts, baseOpts, packageMap);
     } else {
-      await runSinglePackageMode(opts, baseOpts, diffFiles);
+      const { pkgOpts, pkgFiles } = resolveSinglePackageArgs(
+        cwd,
+        baseOpts,
+        diffFiles,
+        packageMap,
+      );
+      await runSinglePackageMode(opts, pkgOpts, pkgFiles);
     }
   } catch (err) {
     console.error("Error:", err instanceof Error ? err.message : err);

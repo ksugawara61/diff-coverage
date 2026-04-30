@@ -6,7 +6,12 @@ import {
 export const resolveRunner = async (
   cwd: string,
   runner: RunnerType | "auto",
-): Promise<RunnerType> =>
-  runner === "auto" ? await detectRunner(cwd) : runner;
+  testCommand?: string,
+): Promise<RunnerType> => {
+  if (runner !== "auto") return runner;
+  if (testCommand?.includes("vitest")) return "vitest";
+  if (testCommand?.includes("jest")) return "jest";
+  return detectRunner(cwd);
+};
 
 export { detectRunner };
