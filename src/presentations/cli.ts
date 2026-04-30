@@ -7,7 +7,7 @@ import { registerReviewCommand } from "./cli/commands/review.js";
 import { registerTypecheckCommand } from "./cli/commands/typecheck.js";
 
 const name = "diff-coverage";
-const version = "0.1.3";
+const version = "0.1.4";
 
 const program = new Command();
 

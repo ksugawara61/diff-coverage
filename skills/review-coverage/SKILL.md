@@ -21,11 +21,7 @@ Before posting, run with `--dry-run` to preview the planned inline comments with
 
 ```bash
 npx diff-coverage review \
-  [--base <branch>] \
-  [--cwd <project-dir>] \
-  [--runner jest|vitest|auto] \
   [--threshold <number>] \
-  [--ext <extensions>] \
   [--exclude "<glob-patterns>"] \
   --dry-run
 ```
@@ -38,23 +34,13 @@ Run without `--dry-run` to measure coverage and post inline comments to the PR:
 
 ```bash
 npx diff-coverage review \
-  [--base <branch>] \
-  [--cwd <project-dir>] \
-  [--runner jest|vitest|auto] \
-  [--pr <number>] \
   [--threshold <number>] \
-  [--ext <extensions>] \
   [--exclude "<glob-patterns>"]
 ```
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `-b, --base <branch>` | `main` | Base branch to diff against |
-| `-c, --cwd <path>` | cwd | Project root if not the repo root |
-| `-r, --runner <runner>` | `auto` | Test runner: `jest` \| `vitest` \| `auto` |
-| `--pr <number>` | (auto) | PR number override when auto-detection fails |
 | `--threshold <number>` | — | Minimum line coverage %; exits 1 if below |
-| `--ext <extensions>` | `ts,tsx,js,jsx` | Comma-separated file extensions to analyze |
 | `--exclude <patterns>` | — | Comma-separated glob patterns to exclude |
 
 The command will:

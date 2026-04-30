@@ -19,22 +19,12 @@ npx diff-coverage <command> [options]
 
 ## Workflow
 
-### Step 1 — Determine base ref
-
-```bash
-git merge-base HEAD main
-```
-
-Use the resulting commit hash as `<base-ref>` in subsequent steps.
-
-### Step 2 — Measure current coverage
+### Step 1 — Measure current coverage
 
 Run `measure` to get the baseline report. Adjust options to match the project:
 
 ```bash
 npx diff-coverage measure \
-  --base <base-ref> \
-  [--cwd <project-dir>] \
   [--exclude "<glob-patterns>"] \
   [--cmd "<test-command>"] \
   [--threshold <number>]
@@ -42,8 +32,6 @@ npx diff-coverage measure \
 
 | Option | Purpose |
 |--------|---------|
-| `--base` | Git ref to diff against (required) |
-| `--cwd` | Project root if not the repo root |
 | `--exclude` | Comma-separated globs to skip (e.g. mocks, stories) |
 | `--cmd` | Custom test command; defaults to auto-detected runner |
 | `--threshold` | Minimum coverage %; exit code 1 if any file falls below |
@@ -56,7 +44,7 @@ Parse the output to collect, for each changed file:
 
 If all files already show 100% line coverage, report success immediately and stop.
 
-### Step 3 — Understand the source code
+### Step 2 — Understand the source code
 
 For each file that has uncovered lines:
 
@@ -66,7 +54,7 @@ For each file that has uncovered lines:
    - A `__tests__/` sibling directory with the same filename pattern
 3. If a test file exists, read it to understand the existing test structure, naming conventions, mocking patterns, and import style (ESM `import` vs CJS `require`).
 
-### Step 4 — Write targeted tests
+### Step 3 — Write targeted tests
 
 For each source file with uncovered lines, add only the tests needed to cover those lines. Do not rewrite existing tests.
 
@@ -85,7 +73,7 @@ For each source file with uncovered lines, add only the tests needed to cover th
 - Do not import or call any source file other than the one being tested
 - Do not modify source files
 
-### Step 5 — Verify tests pass
+### Step 4 — Verify tests pass
 
 Run the test suite scoped to the files you modified. Use whatever test command the project provides (e.g. `pnpm test`, `npm test`, `npx vitest run`):
 
@@ -95,14 +83,12 @@ Run the test suite scoped to the files you modified. Use whatever test command t
 
 If any tests fail, read the failure output, correct the test cases, and re-run. Do not proceed until all tests pass.
 
-### Step 6 — Re-measure coverage
+### Step 5 — Re-measure coverage
 
 Run `measure` again with the same arguments as Step 2:
 
 ```bash
 npx diff-coverage measure \
-  --base <base-ref> \
-  [--cwd <project-dir>] \
   [--exclude "<glob-patterns>"] \
   [--cmd "<test-command>"] \
   [--threshold <number>]
@@ -110,7 +96,7 @@ npx diff-coverage measure \
 
 Compare the new per-file percentages to the baseline from Step 2.
 
-### Step 7 — Iterate or conclude
+### Step 6 — Iterate or conclude
 
 - If uncovered lines remain and coverage improved since the last iteration, return to Step 3 for the still-uncovered files.
 - If coverage did not improve between iterations (the same lines are still uncovered after an attempt), explain why those lines are difficult or impossible to cover (e.g., unreachable dead code, platform-specific branches, third-party code paths) and stop.
