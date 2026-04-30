@@ -46,6 +46,10 @@ export const registerReviewTool = (server: McpServer): void => {
           "PR number override; auto-detected from current branch if omitted",
         ),
       runner: RunnerSchema,
+      testCommand: z
+        .string()
+        .optional()
+        .describe("Override test command (e.g. 'pnpm vitest')"),
       threshold: z
         .number()
         .optional()
@@ -57,6 +61,7 @@ export const registerReviewTool = (server: McpServer): void => {
       cwd,
       base,
       runner,
+      testCommand,
       threshold,
       pr,
       dryRun,
@@ -72,6 +77,7 @@ export const registerReviewTool = (server: McpServer): void => {
           extensions,
           pr,
           runner,
+          testCommand,
           threshold,
         });
         return {

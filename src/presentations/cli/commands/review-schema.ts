@@ -3,6 +3,7 @@ import { RunnerEnumSchema } from "../../../applications/shared/runner-enum.js";
 
 export const ReviewCLIOptsSchema = z.object({
   base: z.string().default("main"),
+  cmd: z.string().optional(),
   cwd: z.string(),
   dryRun: z.boolean().optional(),
   exclude: z.string().optional(),

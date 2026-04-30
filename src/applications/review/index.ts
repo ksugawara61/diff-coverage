@@ -34,6 +34,7 @@ type ReviewOptions = {
   extensions?: string[];
   pr?: number;
   runner?: RunOptions["runner"];
+  testCommand?: string;
   threshold?: number;
 };
 
@@ -327,6 +328,7 @@ export const runReview = async (
     exclude: opts.exclude,
     extensions: opts.extensions,
     runner: opts.runner,
+    testCommand: opts.testCommand,
     threshold: opts.threshold,
   });
   const planned = buildPlannedComments(coverage, diffFiles);

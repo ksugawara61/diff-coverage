@@ -43,6 +43,7 @@ const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
       extensions: parseCsv(opts.ext),
       pr: opts.pr,
       runner: opts.runner,
+      testCommand: opts.cmd,
       threshold: opts.threshold,
     });
     console.log(formatReviewResult(outcome));
@@ -82,6 +83,7 @@ export const registerReviewCommand = (program: Command): void => {
       "Minimum line coverage % (CLI exits 1 if below; review event is still COMMENT)",
       Number.parseFloat,
     )
+    .option("--cmd <command>", "Override test command (e.g. 'pnpm vitest')")
     .option("--dry-run", "Print planned comments without posting")
     .option(
       "--ext <extensions>",
