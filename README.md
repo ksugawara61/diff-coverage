@@ -37,17 +37,21 @@ diff-coverage measure --cwd /path/to/your/project
 
 ```bash
 diff-coverage measure \
-  --cwd /path/to/project \   # project root (required)
-  --base main \               # base branch to diff against (default: main)
-  --cmd "npx jest" \          # test runner command (default: auto-detected)
-  --threshold 80 \            # fail if coverage is below this % (exit code 1)
-  --json                      # output results as JSON
+  --cwd /path/to/project \              # project root (default: cwd)
+  --base main \                          # base branch to diff against (default: merge-base of HEAD and main)
+  --runner jest \                        # test runner: jest | vitest | auto (default: auto)
+  --cmd "npx jest" \                     # override test runner command
+  --ext "ts,tsx" \                       # file extensions to include (default: ts,tsx,js,jsx)
+  --threshold 80 \                       # fail if line coverage is below this % (exit code 1)
+  --exclude "*.mocks.ts,src/fixtures/**" # glob patterns to exclude
+  --json                                 # output results as JSON
+  --diff-only                            # show changed files only, skip running tests
 ```
 
 ### List changed files without running tests
 
 ```bash
-diff-coverage diff --cwd /path/to/project
+diff-coverage measure --diff-only --cwd /path/to/project
 ```
 
 ### Example output

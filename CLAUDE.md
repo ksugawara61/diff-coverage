@@ -21,14 +21,16 @@ pnpm format         # Auto-format with Biome
 ```
 
 Run a single test file:
+
 ```bash
-pnpm vitest run src/diff.test.ts
+pnpm vitest run src/repositories/git.test.ts
 ```
 
 Run the compiled CLI against an example project:
+
 ```bash
-node dist/presentations/cli.js measure --cwd example/jest-project --base main
-node dist/presentations/cli.js measure --cwd example/vitest-project --base main
+node dist/cli.js measure --cwd example/jest-project --base main
+node dist/cli.js measure --cwd example/vitest-project --base main
 ```
 
 ## Git Hooks (lefthook)
@@ -40,8 +42,9 @@ node dist/presentations/cli.js measure --cwd example/vitest-project --base main
 
 The project uses a layered architecture with a single CLI entry point:
 
-- **`src/presentations/cli.ts`** — Commander-based CLI (`measure`, `diff`, `detect`, `typecheck`, `review` subcommands)
-- **`src/applications/`** — Business logic per command (measure, diff, review, typecheck, detect)
+- **`src/cli.ts`** — Commander-based CLI entry point; registers `measure` (default) and `review` subcommands
+- **`src/presentations/`** — CLI option parsing and command wiring per subcommand (`measure/`, `review/`, `shared/`)
+- **`src/applications/`** — Business logic per domain (measure, diff, review, detect, shared)
 - **`src/repositories/`** — Data access layer (git, github, coverage files, runners)
 
 ### Data flow for `measure`
@@ -63,6 +66,7 @@ The project uses a layered architecture with a single CLI entry point:
 **Linter/formatter:** Biome with strict settings — enforced via git hooks and CI.
 
 Key rules to be aware of:
+
 - No `any` types — use explicit types or generics
 - `type` keyword for type aliases, not `interface`
 - Arrow functions required (no `function` declarations where avoidable)
