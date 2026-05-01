@@ -25,5 +25,7 @@ export const runJest = async (
     cwd,
     env: { ...process.env, CI: "true" },
     reject: false,
+    stderr: "inherit",
+    stdout: "inherit",
   });
 };

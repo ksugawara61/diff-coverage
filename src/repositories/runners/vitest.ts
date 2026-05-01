@@ -98,6 +98,8 @@ export async function runVitest(
       cwd,
       env: { ...process.env, CI: "true" },
       reject: false,
+      stderr: "inherit",
+      stdout: "inherit",
     });
   });
 

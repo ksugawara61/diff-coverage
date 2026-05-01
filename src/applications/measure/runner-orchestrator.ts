@@ -50,7 +50,9 @@ export const runCoverage = async (
   try {
     summaryData = await readCoverageSummary(cwd);
   } catch {
-    return emptyResult(runner);
+    throw new Error(
+      "Failed to read coverage report. The test runner may have exited with an error — check the output above.",
+    );
   }
 
   try {

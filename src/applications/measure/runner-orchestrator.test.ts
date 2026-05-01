@@ -75,7 +75,8 @@ describe("runCoverage", () => {
   });
 
   it("calls detectRunner with cwd when runner option is auto", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage({ cwd: CWD, runner: "auto" }, [
       makeDiffFile("src/foo.ts"),
     ]);
@@ -83,7 +84,8 @@ describe("runCoverage", () => {
   });
 
   it("infers vitest from testCommand without calling detectRunner", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage(
       {
         cwd: CWD,
@@ -97,7 +99,8 @@ describe("runCoverage", () => {
   });
 
   it("infers jest from testCommand without calling detectRunner", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage(
       { cwd: CWD, testCommand: "pnpm exec jest --config jest.config.ts" },
       [makeDiffFile("src/foo.ts")],
@@ -108,7 +111,8 @@ describe("runCoverage", () => {
   });
 
   it("falls back to detectRunner when testCommand has no known runner keyword", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage({ cwd: CWD, testCommand: "pnpm test" }, [
       makeDiffFile("src/foo.ts"),
     ]);
@@ -116,7 +120,8 @@ describe("runCoverage", () => {
   });
 
   it("invokes jest runner when runner is jest", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage({ cwd: CWD, runner: "jest" }, [
       makeDiffFile("src/foo.ts"),
     ]);
@@ -125,7 +130,8 @@ describe("runCoverage", () => {
   });
 
   it("invokes vitest runner when runner is vitest", async () => {
-    mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
+    mockReadCoverageSummary.mockResolvedValueOnce({});
+    mockReadCoverageFinal.mockResolvedValueOnce({});
     await runCoverage({ cwd: CWD, runner: "vitest" }, [
       makeDiffFile("src/foo.ts"),
     ]);
@@ -133,12 +139,11 @@ describe("runCoverage", () => {
     expect(mockRunJest).not.toHaveBeenCalled();
   });
 
-  it("returns empty result when coverage-summary.json is missing", async () => {
+  it("throws when coverage-summary.json is missing", async () => {
     mockReadCoverageSummary.mockRejectedValueOnce(new Error("ENOENT"));
-    const result = await runCoverage({ cwd: CWD, runner: "jest" }, [
-      makeDiffFile("src/foo.ts"),
-    ]);
-    expect(result.files).toEqual([]);
+    await expect(
+      runCoverage({ cwd: CWD, runner: "jest" }, [makeDiffFile("src/foo.ts")]),
+    ).rejects.toThrow("Failed to read coverage report");
   });
 
   it("still returns coverage data when coverage-final.json is missing", async () => {
