@@ -1,6 +1,6 @@
 {
   "bin": {
-    "diff-coverage": "./dist/presentations/cli.js"
+    "diff-coverage": "./dist/cli.js"
   },
   "dependencies": {
     "@vitest/coverage-v8": "^4.1.5",
