@@ -31,7 +31,7 @@
     "knip": "knip",
     "lint": "biome lint .",
     "prepare": "if test \"$CI\" != \"true\" ; then lefthook install; fi",
-    "start": "node dist/presentations/cli.js",
+    "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
