@@ -1,5 +1,4 @@
 {
-  "defaultMode": "acceptEdits",
   "env": {
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
@@ -16,6 +15,17 @@
           }
         ],
         "matcher": "Write|Edit"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "echo 'Plan 承認前に /codex:adversarial-review を推奨します'",
+            "type": "command"
+          }
+        ],
+        "matcher": "ExitPlanMode"
       }
     ],
     "SessionStart": [
@@ -42,6 +52,7 @@
       "Bash(pnpm typecheck *)",
       "Bash(pnpm install *)"
     ],
+    "defaultMode": "plan",
     "deny": ["Bash(npm:*)", "Bash(npx:*)", "Bash(rm:*)"]
   },
   "statusLine": {
