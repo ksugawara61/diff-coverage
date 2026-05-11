@@ -124,11 +124,13 @@ const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const exclude = parseCsvOption(opts.exclude);
+  const include = parseCsvOption(opts.include);
   const baseOpts: MeasureOptions = {
     base: opts.base,
     cwd,
     exclude,
     extensions,
+    include,
     runner: opts.runner,
     testCommand: opts.cmd,
     threshold: opts.threshold,
@@ -196,6 +198,10 @@ export const registerMeasureCommand = (program: Command): void => {
     .option(
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
+    )
+    .option(
+      "--include <patterns>",
+      "Comma-separated glob patterns to include files (e.g. 'src/**,packages/api/**')",
     )
     .action(async (rawOpts) => {
       const parsed = MeasureCLIOptsSchema.safeParse(rawOpts);

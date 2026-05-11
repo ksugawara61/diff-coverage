@@ -108,6 +108,26 @@ describe("resolveMeasureDiffFiles", () => {
       ["ts"],
       undefined,
       ["a.ts", "b.ts"],
+      [],
+    );
+  });
+
+  it("converts opts.include before calling getDiffFiles", async () => {
+    mockGetDiffFiles.mockResolvedValueOnce([]);
+
+    await resolveMeasureDiffFiles({
+      base: "main",
+      cwd: "/repo",
+      include: ["src/**", "packages/api/**"],
+    });
+
+    expect(mockGetDiffFiles).toHaveBeenCalledWith(
+      "/repo",
+      "main",
+      undefined,
+      undefined,
+      [],
+      ["src/**", "packages/api/**"],
     );
   });
 
@@ -122,6 +142,7 @@ describe("resolveMeasureDiffFiles", () => {
       undefined,
       undefined,
       undefined,
+      [],
       [],
     );
   });
@@ -195,6 +216,7 @@ describe("runMeasure", () => {
       ["ts"],
       undefined,
       ["x", "y"],
+      [],
     );
     expect(outcome.diffFiles).toBe(files);
     expect(outcome.thresholdMet).toBe(true);

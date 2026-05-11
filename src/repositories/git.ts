@@ -76,6 +76,7 @@ export const getDiffFiles = async (
   extensions = DEFAULT_EXTENSIONS,
   excludePatterns = DEFAULT_EXCLUDE,
   extraExcludePatterns: string[] = [],
+  includePatterns: string[] = [],
 ): Promise<DiffFile[]> => {
   const extPattern = extensions.join("|");
   const allExcludePatterns = [...excludePatterns, ...extraExcludePatterns];
@@ -103,6 +104,11 @@ export const getDiffFiles = async (
     .split("\n")
     .filter(Boolean)
     .filter((f) => new RegExp(`\\.(${extPattern})$`).test(f))
+    .filter(
+      (f) =>
+        includePatterns.length === 0 ||
+        includePatterns.some((p) => new RegExp(p).test(f)),
+    )
     .filter((f) => !allExcludePatterns.some((p) => new RegExp(p).test(f)));
 
   if (allFiles.length === 0) return [];

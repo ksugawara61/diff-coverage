@@ -8,6 +8,7 @@ export const ReviewCLIOptsSchema = z.object({
   dryRun: z.boolean().optional(),
   exclude: z.string().optional(),
   ext: z.string().default("ts,tsx,js,jsx"),
+  include: z.string().optional(),
   pr: z.number().int().positive().optional(),
   runner: RunnerEnumSchema.default("auto"),
   threshold: z.number().optional(),

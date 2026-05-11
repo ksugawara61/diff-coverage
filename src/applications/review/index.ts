@@ -43,6 +43,7 @@ type ReviewOptions = {
   dryRun?: boolean;
   exclude?: string[];
   extensions?: string[];
+  include?: string[];
   pr?: number;
   runner?: RunOptions["runner"];
   testCommand?: string;
@@ -405,6 +406,7 @@ const runMeasurement = async (
     cwd: opts.cwd,
     exclude: opts.exclude,
     extensions: opts.extensions,
+    include: opts.include,
     runner: opts.runner,
     testCommand: opts.testCommand,
     threshold: opts.threshold,

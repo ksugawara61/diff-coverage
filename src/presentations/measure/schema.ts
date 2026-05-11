@@ -8,6 +8,7 @@ export const MeasureCLIOptsSchema = z.object({
   diffOnly: z.boolean().optional(),
   exclude: z.string().optional(),
   ext: z.string().default("ts,tsx,js,jsx"),
+  include: z.string().optional(),
   json: z.boolean().optional(),
   runner: RunnerEnumSchema.default("auto"),
   threshold: z.number().optional(),

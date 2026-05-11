@@ -25,6 +25,7 @@ Run `measure` to get the baseline report. Adjust options to match the project:
 
 ```bash
 npx diff-coverage measure \
+  [--include "<glob-patterns>"] \
   [--exclude "<glob-patterns>"] \
   [--cmd "<test-command>"] \
   [--threshold <number>]
@@ -32,6 +33,7 @@ npx diff-coverage measure \
 
 | Option | Purpose |
 |--------|---------|
+| `--include` | Comma-separated globs to measure (e.g. source directories) |
 | `--exclude` | Comma-separated globs to skip (e.g. mocks, stories) |
 | `--cmd` | Custom test command; defaults to auto-detected runner |
 | `--threshold` | Minimum coverage %; exit code 1 if any file falls below |
@@ -89,6 +91,7 @@ Run `measure` again with the same arguments as Step 2:
 
 ```bash
 npx diff-coverage measure \
+  [--include "<glob-patterns>"] \
   [--exclude "<glob-patterns>"] \
   [--cmd "<test-command>"] \
   [--threshold <number>]

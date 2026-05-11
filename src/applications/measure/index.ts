@@ -12,6 +12,7 @@ export type MeasureOptions = {
   cwd: string;
   exclude?: string[];
   extensions?: string[];
+  include?: string[];
   runner?: RunOptions["runner"];
   testCommand?: string;
   threshold?: number;
@@ -36,8 +37,10 @@ export const resolveMeasureDiffFiles = async (opts: {
   cwd: string;
   exclude?: string[];
   extensions?: string[];
+  include?: string[];
 }): Promise<DiffFile[]> => {
   const config = await loadConfig(opts.cwd);
+  const includePatterns = (opts.include ?? []).map(globToRegex);
   const extraExcludePatterns = [
     ...(config.exclude ?? []),
     ...(opts.exclude ?? []),
@@ -48,6 +51,7 @@ export const resolveMeasureDiffFiles = async (opts: {
     opts.extensions,
     undefined,
     extraExcludePatterns,
+    includePatterns,
   );
 };
 

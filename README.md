@@ -43,6 +43,7 @@ diff-coverage measure \
   --cmd "npx jest" \                     # override test runner command
   --ext "ts,tsx" \                       # file extensions to include (default: ts,tsx,js,jsx)
   --threshold 80 \                       # fail if line coverage is below this % (exit code 1)
+  --include "src/**,packages/api/**" \    # glob patterns to include
   --exclude "*.mocks.ts,src/fixtures/**" # glob patterns to exclude
   --json                                 # output results as JSON
   --diff-only                            # show changed files only, skip running tests
@@ -52,6 +53,16 @@ diff-coverage measure \
 
 ```bash
 diff-coverage measure --diff-only --cwd /path/to/project
+```
+
+### Post GitHub review comments
+
+```bash
+diff-coverage review \
+  --include "src/**,packages/api/**" \
+  --exclude "*.mocks.ts,src/fixtures/**" \
+  --threshold 80 \
+  --dry-run
 ```
 
 ### Example output

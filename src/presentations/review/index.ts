@@ -40,6 +40,7 @@ const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
       dryRun: opts.dryRun,
       exclude: parseCsvOption(opts.exclude),
       extensions: parseCsv(opts.ext),
+      include: parseCsvOption(opts.include),
       pr: opts.pr,
       runner: opts.runner,
       testCommand: opts.cmd,
@@ -86,6 +87,10 @@ export const registerReviewCommand = (program: Command): void => {
     .option(
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files",
+    )
+    .option(
+      "--include <patterns>",
+      "Comma-separated glob patterns to include files",
     )
     .action(async (rawOpts) => {
       const parsed = ReviewCLIOptsSchema.safeParse(rawOpts);

@@ -22,6 +22,7 @@ Before posting, run with `--dry-run` to preview the planned inline comments with
 ```bash
 npx diff-coverage review \
   [--threshold <number>] \
+  [--include "<glob-patterns>"] \
   [--exclude "<glob-patterns>"] \
   --dry-run
 ```
@@ -35,12 +36,14 @@ Run without `--dry-run` to measure coverage and post inline comments to the PR:
 ```bash
 npx diff-coverage review \
   [--threshold <number>] \
+  [--include "<glob-patterns>"] \
   [--exclude "<glob-patterns>"]
 ```
 
 | Option | Default | Purpose |
 |--------|---------|---------|
 | `--threshold <number>` | — | Minimum line coverage %; exits 1 if below |
+| `--include <patterns>` | — | Comma-separated glob patterns to include |
 | `--exclude <patterns>` | — | Comma-separated glob patterns to exclude |
 
 The command will:

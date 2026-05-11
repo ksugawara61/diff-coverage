@@ -469,6 +469,26 @@ describe("runReview", () => {
     expect(mockCreateReview).not.toHaveBeenCalled();
   });
 
+  it("passes include patterns to diff file resolution", async () => {
+    mountSuccessfulPipeline();
+
+    await runReview({
+      cwd: "/repo",
+      dryRun: true,
+      exclude: ["*.mocks.ts"],
+      extensions: ["ts"],
+      include: ["src/**"],
+    });
+
+    expect(mockResolveMeasureDiffFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exclude: ["*.mocks.ts"],
+        extensions: ["ts"],
+        include: ["src/**"],
+      }),
+    );
+  });
+
   it("skips comments whose marker and body are already identical on the PR", async () => {
     mountSuccessfulPipeline();
     const planned = buildPlannedComments(

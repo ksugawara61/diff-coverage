@@ -160,6 +160,69 @@ describe("getDiffFiles", () => {
     expect(files[0].path).toBe("src/foo.ts");
   });
 
+  it("filters changed files to include regex patterns when provided", async () => {
+    mockGit(
+      new Error("no origin"),
+      { stdout: "/project" },
+      { stdout: "src/foo.ts\npackages/api/foo.ts\npackages/web/foo.ts" },
+      { stdout: "1\t0\tpackages/api/foo.ts" },
+      { stdout: "" },
+    );
+
+    const files = await getDiffFiles(
+      "/project",
+      "main",
+      undefined,
+      undefined,
+      [],
+      ["^packages/api/.*"],
+    );
+
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe("packages/api/foo.ts");
+  });
+
+  it("returns empty array when include regex patterns match no changed files", async () => {
+    mockGit(
+      new Error("no origin"),
+      { stdout: "/project" },
+      { stdout: "src/foo.ts" },
+    );
+
+    const files = await getDiffFiles(
+      "/project",
+      "main",
+      undefined,
+      undefined,
+      [],
+      ["^packages/api/.*"],
+    );
+
+    expect(files).toEqual([]);
+  });
+
+  it("applies exclude regex patterns after include regex patterns", async () => {
+    mockGit(
+      new Error("no origin"),
+      { stdout: "/project" },
+      { stdout: "src/foo.ts\nsrc/foo.mocks.ts" },
+      { stdout: "1\t0\tsrc/foo.ts" },
+      { stdout: "" },
+    );
+
+    const files = await getDiffFiles(
+      "/project",
+      "main",
+      undefined,
+      undefined,
+      ["(^|/)foo\\.mocks\\.ts$"],
+      ["^src/.*\\.ts$"],
+    );
+
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe("src/foo.ts");
+  });
+
   it("uses origin/base ref when it exists", async () => {
     mockGit(
       { stdout: "abc123" },
