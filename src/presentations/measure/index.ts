@@ -14,12 +14,17 @@ import {
   measureWithDiffFiles,
   resolveMeasureDiffFiles,
 } from "../../applications/measure/index.js";
+import {
+  formatReviewResult,
+  runReview,
+} from "../../applications/review/index.js";
 import type { DiffFile } from "../../repositories/git.js";
 import {
   groupDiffFilesByPackage,
   remapDiffFilePaths,
 } from "../../repositories/monorepo.js";
 import { parseCsv, parseCsvOption } from "../shared/csv.js";
+import { handleReviewError } from "../shared/handle-review-error.js";
 import { MeasureCLIOptsSchema, type MeasureCliOptions } from "./schema.js";
 
 const printMonorepoResult = (
@@ -120,7 +125,36 @@ const resolveSinglePackageArgs = (
   return { pkgFiles: diffFiles, pkgOpts: baseOpts };
 };
 
+const runPrReviewMode = async (opts: MeasureCliOptions): Promise<void> => {
+  try {
+    console.error(
+      `📝 Reviewing PR for current branch (base: ${opts.base ?? "merge-base of HEAD and main"})...`,
+    );
+    const outcome = await runReview({
+      base: opts.base,
+      cwd: resolve(opts.cwd),
+      dryRun: opts.dryRun,
+      exclude: parseCsvOption(opts.exclude),
+      extensions: parseCsv(opts.ext),
+      include: parseCsvOption(opts.include),
+      pr: opts.pr,
+      runner: opts.runner,
+      testCommand: opts.cmd,
+      threshold: opts.threshold,
+    });
+    console.log(formatReviewResult(outcome));
+    if (outcome.thresholdMet === false) process.exit(1);
+  } catch (err) {
+    handleReviewError(err);
+  }
+};
+
 const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
+  if (opts.output === "pr-review") {
+    await runPrReviewMode(opts);
+    return;
+  }
+
   const cwd = resolve(opts.cwd);
   const extensions = parseCsv(opts.ext);
   const exclude = parseCsvOption(opts.exclude);
@@ -193,8 +227,25 @@ export const registerMeasureCommand = (program: Command): void => {
       "Fail if line coverage is below this %",
       Number.parseFloat,
     )
-    .option("--json", "Output raw JSON")
-    .option("--diff-only", "Only show diff files, don't run tests")
+    .option(
+      "--output <mode>",
+      "Output mode: stdout | pr-review (default: stdout)",
+      "stdout",
+    )
+    .option("--json", "Output raw JSON (only with --output stdout)")
+    .option(
+      "--diff-only",
+      "Only show diff files, don't run tests (only with --output stdout)",
+    )
+    .option(
+      "--pr <number>",
+      "PR number override (only with --output pr-review)",
+      (v) => Number.parseInt(v, 10),
+    )
+    .option(
+      "--dry-run",
+      "Print planned PR comments without posting (only with --output pr-review)",
+    )
     .option(
       "--exclude <patterns>",
       "Comma-separated glob patterns to exclude files (e.g. '*.mocks.ts,src/fixtures/**')",
