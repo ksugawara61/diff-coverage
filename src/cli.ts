@@ -4,7 +4,7 @@ import { registerMeasureCommand } from "./presentations/measure/index.js";
 import { registerReviewCommand } from "./presentations/review/index.js";
 
 const name = "diff-coverage";
-const version = "0.1.5";
+const version = "0.1.6";
 
 const program = new Command();
 
