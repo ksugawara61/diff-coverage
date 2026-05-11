@@ -2,7 +2,9 @@
   "defaultMode": "acceptEdits",
   "env": {
     "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"
   },
   "hooks": {
     "PostToolUse": [
@@ -28,6 +30,7 @@
       }
     ]
   },
+  "model": "opusplan",
   "permissions": {
     "allow": [
       "Bash(node dist/cli.js measure --cwd example/jest-project --base main)",
@@ -38,7 +41,8 @@
       "Bash(pnpm lint *)",
       "Bash(pnpm typecheck *)",
       "Bash(pnpm install *)"
-    ]
+    ],
+    "deny": ["Bash(npm:*)", "Bash(npx:*)", "Bash(rm:*)"]
   },
   "statusLine": {
     "command": "jq -r '\"[\\(.model.display_name)] \\(.context_window.used_percentage // 0)% context\"'",
