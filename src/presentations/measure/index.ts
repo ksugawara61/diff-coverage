@@ -14,17 +14,13 @@ import {
   measureWithDiffFiles,
   resolveMeasureDiffFiles,
 } from "../../applications/measure/index.js";
-import {
-  formatReviewResult,
-  runReview,
-} from "../../applications/review/index.js";
 import type { DiffFile } from "../../repositories/git.js";
 import {
   groupDiffFilesByPackage,
   remapDiffFilePaths,
 } from "../../repositories/monorepo.js";
 import { parseCsv, parseCsvOption } from "../shared/csv.js";
-import { handleReviewError } from "../shared/handle-review-error.js";
+import { runReviewOutput } from "../shared/run-review-output.js";
 import { MeasureCLIOptsSchema, type MeasureCliOptions } from "./schema.js";
 
 const printMonorepoResult = (
@@ -125,33 +121,9 @@ const resolveSinglePackageArgs = (
   return { pkgFiles: diffFiles, pkgOpts: baseOpts };
 };
 
-const runPrReviewMode = async (opts: MeasureCliOptions): Promise<void> => {
-  try {
-    console.error(
-      `📝 Reviewing PR for current branch (base: ${opts.base ?? "merge-base of HEAD and main"})...`,
-    );
-    const outcome = await runReview({
-      base: opts.base,
-      cwd: resolve(opts.cwd),
-      dryRun: opts.dryRun,
-      exclude: parseCsvOption(opts.exclude),
-      extensions: parseCsv(opts.ext),
-      include: parseCsvOption(opts.include),
-      pr: opts.pr,
-      runner: opts.runner,
-      testCommand: opts.cmd,
-      threshold: opts.threshold,
-    });
-    console.log(formatReviewResult(outcome));
-    if (outcome.thresholdMet === false) process.exit(1);
-  } catch (err) {
-    handleReviewError(err);
-  }
-};
-
 const runMeasureCommand = async (opts: MeasureCliOptions): Promise<void> => {
   if (opts.output === "pr-review") {
-    await runPrReviewMode(opts);
+    await runReviewOutput(opts);
     return;
   }
 
