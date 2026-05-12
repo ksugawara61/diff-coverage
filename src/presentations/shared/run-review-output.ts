@@ -7,7 +7,7 @@ import {
 import { parseCsv, parseCsvOption } from "./csv.js";
 import { handleReviewError } from "./handle-review-error.js";
 
-export type ReviewOutputArgs = {
+type ReviewOutputArgs = {
   base?: string;
   cmd?: string;
   cwd: string;
