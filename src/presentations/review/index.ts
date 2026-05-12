@@ -2,34 +2,16 @@ import { resolve } from "node:path";
 import type { Command } from "commander";
 import {
   formatReviewResult,
-  NoPullRequestError,
   runReview,
 } from "../../applications/review/index.js";
-import {
-  GhNotAuthenticatedError,
-  GhNotInstalledError,
-} from "../../repositories/github.js";
 import { parseCsv, parseCsvOption } from "../shared/csv.js";
+import { handleReviewError } from "../shared/handle-review-error.js";
 import { ReviewCLIOptsSchema, type ReviewCliOptions } from "./schema.js";
 
-const handleReviewError = (err: unknown): never => {
-  if (err instanceof GhNotInstalledError) {
-    console.error(`Error: ${err.message}`);
-    process.exit(1);
-  }
-  if (err instanceof GhNotAuthenticatedError) {
-    console.error(`Error: ${err.message}`);
-    process.exit(1);
-  }
-  if (err instanceof NoPullRequestError) {
-    console.error(`Error: ${err.message}`);
-    process.exit(2);
-  }
-  console.error("Error:", err instanceof Error ? err.message : err);
-  process.exit(1);
-};
-
 const runReviewCommand = async (opts: ReviewCliOptions): Promise<void> => {
+  console.error(
+    "⚠️  `review` is deprecated and will be removed in a future release. Use `measure --output pr-review` instead.",
+  );
   try {
     console.error(
       `📝 Reviewing PR for current branch (base: ${opts.base ?? "merge-base of HEAD and main"})...`,
